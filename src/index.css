@@ -1,0 +1,295 @@
+﻿@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Changa:wght@500;600;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 201 58% 7%;
+    --foreground: 210 31% 96%;
+
+    --card: 202 46% 12% / 0.66;
+    --card-foreground: 210 31% 96%;
+    --card-glass: 0 0% 100% / 0.08;
+    --card-border: 0 0% 100% / 0.14;
+
+    --popover: 203 50% 11% / 0.95;
+    --popover-foreground: 210 31% 96%;
+
+    --primary: 192 83% 60%;
+    --primary-foreground: 200 56% 10%;
+    --primary-glass: 192 83% 60% / 0.16;
+
+    --secondary: 0 0% 100% / 0.08;
+    --secondary-foreground: 210 31% 96%;
+
+    --muted: 0 0% 100% / 0.05;
+    --muted-foreground: 210 18% 75%;
+
+    --accent: 38 89% 63%;
+    --accent-foreground: 201 58% 9%;
+
+    --destructive: 0 82% 63%;
+    --destructive-foreground: 210 31% 98%;
+
+    --status-ok: 155 66% 47%;
+    --status-warn: 39 94% 61%;
+    --status-bad: 0 82% 63%;
+    --status-info: 194 83% 68%;
+
+    --border: 0 0% 100% / 0.12;
+    --input: 0 0% 100% / 0.08;
+    --ring: 192 83% 60%;
+
+    --gradient-primary:
+      radial-gradient(circle at 18% 16%, hsl(188 78% 38% / 0.26), transparent 24%),
+      radial-gradient(circle at 82% 12%, hsl(38 89% 60% / 0.18), transparent 28%),
+      radial-gradient(circle at 68% 78%, hsl(156 70% 34% / 0.2), transparent 26%),
+      linear-gradient(135deg, hsl(205 58% 8%), hsl(201 54% 9%) 42%, hsl(213 63% 6%) 100%);
+    --gradient-glass: linear-gradient(180deg, hsl(0 0% 100% / 0.18), hsl(0 0% 100% / 0.07));
+    --gradient-sidebar: linear-gradient(180deg, hsl(198 43% 16% / 0.92), hsl(206 51% 9% / 0.96));
+
+    --shadow-glass: 0 24px 80px hsl(205 76% 4% / 0.38);
+    --shadow-panel: 0 14px 34px hsl(205 76% 4% / 0.24);
+    --shadow-glow: 0 0 48px hsl(192 83% 60% / 0.16);
+    --blur-glass: 20px;
+
+    --radius: 1.5rem;
+
+    --sidebar-background: 206 54% 10%;
+    --sidebar-foreground: 210 31% 96%;
+    --sidebar-primary: 192 83% 60%;
+    --sidebar-primary-foreground: 200 56% 10%;
+    --sidebar-accent: 0 0% 100% / 0.08;
+    --sidebar-accent-foreground: 210 31% 96%;
+    --sidebar-border: 0 0% 100% / 0.12;
+    --sidebar-ring: 192 83% 60%;
+  }
+
+  * {
+    @apply border-border;
+    box-sizing: border-box;
+  }
+
+  html {
+    direction: rtl;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply min-h-screen bg-gradient-primary text-foreground antialiased;
+    font-family: "IBM Plex Sans Arabic", sans-serif;
+    background-attachment: fixed;
+    position: relative;
+    overflow-x: hidden;
+  }
+
+  body::before,
+  body::after {
+    content: "";
+    position: fixed;
+    pointer-events: none;
+    z-index: -1;
+    border-radius: 999px;
+    filter: blur(60px);
+  }
+
+  body::before {
+    top: 4rem;
+    right: 8%;
+    width: 18rem;
+    height: 18rem;
+    background: hsl(192 83% 60% / 0.16);
+  }
+
+  body::after {
+    bottom: 8%;
+    left: 10%;
+    width: 22rem;
+    height: 22rem;
+    background: hsl(38 89% 63% / 0.12);
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: "Changa", "IBM Plex Sans Arabic", sans-serif;
+    letter-spacing: -0.02em;
+  }
+}
+
+@layer components {
+  .glass {
+    background: var(--gradient-glass);
+    border: 1px solid hsl(var(--card-border));
+    backdrop-filter: blur(var(--blur-glass));
+    box-shadow: var(--shadow-glass);
+  }
+
+  .glass-panel {
+    @apply glass rounded-[28px];
+  }
+
+  .glass-sidebar {
+    background: var(--gradient-sidebar);
+    border: 1px solid hsl(var(--sidebar-border));
+    backdrop-filter: blur(calc(var(--blur-glass) + 4px));
+    box-shadow: var(--shadow-glass);
+  }
+
+  .glass-modal {
+    @apply glass rounded-[32px];
+  }
+
+  .glass-pill {
+    @apply inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm;
+    border-color: hsl(var(--card-border));
+    background: hsl(0 0% 100% / 0.06);
+    backdrop-filter: blur(12px);
+  }
+
+  .glass-hover {
+    @apply transition-all duration-300 ease-out;
+  }
+
+  .glass-hover:hover {
+    transform: translateY(-2px);
+    background: hsl(0 0% 100% / 0.11);
+    box-shadow: var(--shadow-panel);
+  }
+
+  .glass-button-hover {
+    @apply transition-all duration-300 ease-out;
+  }
+
+  .glass-button-hover:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-panel);
+  }
+
+  .surface-divider {
+    border-top: 1px solid hsl(var(--card-border));
+  }
+
+  .section-enter {
+    animation: floatInDown 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .table-enter {
+    animation: floatInSide 0.58s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .fade-enter {
+    animation: fadeIn 0.32s ease-out;
+  }
+
+  .logo-glow {
+    box-shadow: 0 0 42px hsl(192 83% 60% / 0.24);
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+.scrollbar-visible {
+  scrollbar-width: auto;
+  scrollbar-color: hsl(var(--accent) / 0.88) hsl(var(--muted));
+}
+
+.scrollbar-visible::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.scrollbar-visible::-webkit-scrollbar-track {
+  background: hsl(var(--muted));
+  border-radius: 999px;
+}
+
+.scrollbar-visible::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, hsl(var(--accent)), hsl(var(--primary)));
+  border-radius: 999px;
+}
+
+.scrollbar-thin {
+  scrollbar-width: thin;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: hsl(var(--accent) / 0.55);
+  border-radius: 999px;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.32s ease-out;
+}
+
+.animate-slide-in {
+  animation: slideIn 0.34s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.22s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    transform: scale(0.97);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes floatInDown {
+  from {
+    transform: translateY(-14px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes floatInSide {
+  from {
+    transform: translateX(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
