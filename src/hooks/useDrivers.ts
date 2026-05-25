@@ -1,6 +1,14 @@
 ﻿import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { asDate, daysBetween } from '@/lib/dateUtils';
+import {
+  DEMO_MODE,
+  getDemoApplicationRecords,
+  getDemoAuditLogs,
+  getDemoCars,
+  getDemoDrivers,
+  getDemoProfile,
+} from '@/lib/demoMode';
 import type {
   Driver,
   DriverDetailData,
@@ -31,14 +39,19 @@ const buildPaginatedResult = <T,>(items: T[], total: number, page: number, pageS
 };
 
 export async function fetchExpiringDocuments(days = 30): Promise<ExpiringDocumentItem[]> {
-  const { data, error } = await supabase
-    .from('drivers')
-    .select('id, full_name, iqama_expiry, license_expiry, medical_expiry, status')
-    .neq('status', 'archived');
+  const source = DEMO_MODE
+    ? getDemoDrivers().filter((driver) => driver.status !== 'archived')
+    : await (async () => {
+        const { data, error } = await supabase
+          .from('drivers')
+          .select('id, full_name, iqama_expiry, license_expiry, medical_expiry, status')
+          .neq('status', 'archived');
 
-  if (error) throw error;
+        if (error) throw error;
+        return (data ?? []) as Driver[];
+      })();
 
-  return ((data ?? []) as Driver[])
+  return source
     .flatMap((driver) => {
       const documents: ExpiringDocumentItem[] = [];
       const fields: Array<{ key: ExpiringDocumentItem['document']; value: string }> = [
@@ -75,6 +88,28 @@ export function useDrivers(filters: DriverFilters = {}) {
     queryKey: ['drivers', 'list', { ...filters, page, pageSize }],
     staleTime: 60 * 1000,
     queryFn: async () => {
+      if (DEMO_MODE) {
+        let items = getDemoDrivers();
+
+        if (filters.status && filters.status !== 'all') {
+          items = items.filter((driver) => driver.status === filters.status);
+        }
+
+        if (filters.search?.trim()) {
+          const search = filters.search.trim().toLowerCase();
+          items = items.filter((driver) =>
+            [driver.full_name, driver.iqama, driver.manager ?? '']
+              .join(' ')
+              .toLowerCase()
+              .includes(search)
+          );
+        }
+
+        const from = (page - 1) * pageSize;
+        const to = from + pageSize;
+        return buildPaginatedResult(items.slice(from, to), items.length, page, pageSize);
+      }
+
       let query = supabase
         .from('drivers')
         .select('*', { count: 'exact' })
@@ -105,6 +140,12 @@ export function useDriver(id?: string) {
     enabled: !!id,
     staleTime: 60 * 1000,
     queryFn: async () => {
+      if (DEMO_MODE) {
+        const driver = getDemoDrivers().find((item) => item.id === id);
+        if (!driver) throw new Error('Driver not found');
+        return driver;
+      }
+
       const { data, error } = await supabase
         .from('drivers')
         .select('*')
@@ -123,6 +164,22 @@ export function useDriverDetail(id?: string) {
     enabled: !!id,
     staleTime: 60 * 1000,
     queryFn: async () => {
+      if (DEMO_MODE) {
+        const driver = getDemoDrivers().find((item) => item.id === id);
+        if (!driver) throw new Error('Driver not found');
+        const profile = getDemoProfile();
+
+        return {
+          driver,
+          operations: getDemoApplicationRecords().filter((record) => record.driver_id === id),
+          assignedCars: getDemoCars().filter((car) => car.current_delegate_id === id),
+          audit: getDemoAuditLogs(id).map((row) => ({
+            ...row,
+            actorName: profile.full_name,
+          })),
+        } as DriverDetailData;
+      }
+
       const [driverResult, operationsResult, carsResult, auditResult, applicationsResult] = await Promise.all([
         supabase.from('drivers').select('*').eq('id', id!).single(),
         supabase.from('driver_applications').select('*').eq('driver_id', id!).order('updated_at', { ascending: false }),

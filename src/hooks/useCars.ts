@@ -1,5 +1,6 @@
 ﻿import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { DEMO_MODE, getDemoCars } from '@/lib/demoMode';
 import type { Car, PaginatedResult } from '@/types';
 
 export interface CarFilters {
@@ -30,6 +31,28 @@ export function useCars(filters: CarFilters = {}) {
     queryKey: ['cars', 'list', { ...filters, page, pageSize }],
     staleTime: 60 * 1000,
     queryFn: async () => {
+      if (DEMO_MODE) {
+        let items = [...getDemoCars()].sort((left, right) => right.created_at.localeCompare(left.created_at));
+
+        if (filters.status && filters.status !== 'all') {
+          items = items.filter((car) => car.status === filters.status);
+        }
+
+        if (filters.search?.trim()) {
+          const search = filters.search.trim().toLowerCase();
+          items = items.filter((car) =>
+            [car.plate, car.type, car.brand ?? '', car.model ?? '']
+              .join(' ')
+              .toLowerCase()
+              .includes(search),
+          );
+        }
+
+        const from = (page - 1) * pageSize;
+        const to = from + pageSize;
+        return buildPaginatedResult(items.slice(from, to), items.length, page, pageSize);
+      }
+
       let query = supabase
         .from('cars')
         .select('*, current_delegate:drivers!current_delegate_id(id, full_name)', { count: 'exact' })
@@ -59,6 +82,16 @@ export function useCarStats() {
     queryKey: ['cars', 'stats'],
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
+      if (DEMO_MODE) {
+        const cars = getDemoCars();
+        return {
+          total: cars.length,
+          delegated: cars.filter((car) => car.status === 'delegated').length,
+          outOfService: cars.filter((car) => car.status === 'out_of_service').length,
+          available: cars.filter((car) => car.status === 'available').length,
+        };
+      }
+
       const { data, error } = await supabase.from('cars').select('status');
       if (error) throw error;
 

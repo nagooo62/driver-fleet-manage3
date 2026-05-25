@@ -6,13 +6,17 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { DEMO_MODE } from '@/lib/demoMode';
+
+const DEMO_EMAIL = 'admin@rawaes.local';
+const DEMO_PASSWORD = '123456';
 
 const Auth = () => {
   const { signIn, signUp } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [signInEmail, setSignInEmail] = useState('');
-  const [signInPassword, setSignInPassword] = useState('');
+  const [signInEmail, setSignInEmail] = useState(DEMO_MODE ? DEMO_EMAIL : '');
+  const [signInPassword, setSignInPassword] = useState(DEMO_MODE ? DEMO_PASSWORD : '');
   const [signUpEmail, setSignUpEmail] = useState('');
   const [signUpPassword, setSignUpPassword] = useState('');
   const [signUpFullName, setSignUpFullName] = useState('');
@@ -85,9 +89,23 @@ const Auth = () => {
 
               <TabsContent value="signin" className="mt-6">
                 <form onSubmit={handleSignIn} className="space-y-4 text-right">
+                  {DEMO_MODE ? (
+                    <div className="rounded-2xl border border-primary/20 bg-primary/10 px-4 py-3 text-sm text-primary">
+                      الدخول التجريبي الجاهز: <span dir="ltr">{DEMO_EMAIL}</span> / <span dir="ltr">{DEMO_PASSWORD}</span>
+                    </div>
+                  ) : null}
+
                   <div className="space-y-2">
                     <Label htmlFor="signin-email">البريد الإلكتروني</Label>
-                    <Input id="signin-email" type="email" placeholder="name@company.com" value={signInEmail} onChange={(event) => setSignInEmail(event.target.value)} required dir="ltr" />
+                    <Input
+                      id="signin-email"
+                      type={DEMO_MODE ? 'text' : 'email'}
+                      placeholder={DEMO_MODE ? 'admin أو admin@rawaes.local' : 'name@company.com'}
+                      value={signInEmail}
+                      onChange={(event) => setSignInEmail(event.target.value)}
+                      required
+                      dir="ltr"
+                    />
                   </div>
 
                   <div className="space-y-2">

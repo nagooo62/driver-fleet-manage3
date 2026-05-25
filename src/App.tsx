@@ -1,4 +1,4 @@
-﻿import { Toaster } from '@/components/ui/toaster';
+import { Toaster } from '@/components/ui/toaster';
 import { Toaster as Sonner } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -19,6 +19,7 @@ import SettingsPage from '@/pages/SettingsPage';
 import GpsTrackingPage from '@/pages/GpsTrackingPage';
 import AiAnalyticsPage from '@/pages/AiAnalyticsPage';
 import FinancePage from '@/pages/FinancePage';
+import TestingPage from '@/pages/TestingPage';
 import NotFound from '@/pages/NotFound';
 
 const queryClient = new QueryClient({
@@ -54,6 +55,7 @@ const App = () => (
                 <Route path="/ai" element={<AiAnalyticsPage />} />
                 <Route path="/finance" element={<FinancePage />} />
                 <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/testing" element={<TestingPage />} />
               </Route>
 
               <Route path="*" element={<NotFound />} />

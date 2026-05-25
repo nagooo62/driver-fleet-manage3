@@ -131,6 +131,15 @@ export type Database = {
           temporary_vehicle_type: string | null
           type: string
           updated_at: string
+          photo_url: string | null
+          brand: string | null
+          model: string | null
+          year: number | null
+          color: string | null
+          chassis_number: string | null
+          inspection_expiry: string | null
+          insurance_expiry: string | null
+          operation_card_expiry: string | null
         }
         Insert: {
           created_at?: string
@@ -149,6 +158,15 @@ export type Database = {
           temporary_vehicle_type?: string | null
           type: string
           updated_at?: string
+          photo_url?: string | null
+          brand?: string | null
+          model?: string | null
+          year?: number | null
+          color?: string | null
+          chassis_number?: string | null
+          inspection_expiry?: string | null
+          insurance_expiry?: string | null
+          operation_card_expiry?: string | null
         }
         Update: {
           created_at?: string
@@ -167,6 +185,15 @@ export type Database = {
           temporary_vehicle_type?: string | null
           type?: string
           updated_at?: string
+          photo_url?: string | null
+          brand?: string | null
+          model?: string | null
+          year?: number | null
+          color?: string | null
+          chassis_number?: string | null
+          inspection_expiry?: string | null
+          insurance_expiry?: string | null
+          operation_card_expiry?: string | null
         }
         Relationships: [
           {
@@ -304,6 +331,62 @@ export type Database = {
         }
         Relationships: []
       }
+      driver_documents: {
+        Row: {
+          id: string
+          driver_id: string
+          doc_type: string
+          file_url: string | null
+          file_name: string | null
+          file_size: number | null
+          mime_type: string | null
+          expiry_date: string | null
+          status: string
+          notes: string | null
+          uploaded_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          driver_id: string
+          doc_type: string
+          file_url?: string | null
+          file_name?: string | null
+          file_size?: number | null
+          mime_type?: string | null
+          expiry_date?: string | null
+          status?: string
+          notes?: string | null
+          uploaded_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          driver_id?: string
+          doc_type?: string
+          file_url?: string | null
+          file_name?: string | null
+          file_size?: number | null
+          mime_type?: string | null
+          expiry_date?: string | null
+          status?: string
+          notes?: string | null
+          uploaded_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "driver_documents_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "drivers"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       drivers: {
         Row: {
           archived_reason: string | null
@@ -319,6 +402,16 @@ export type Database = {
           status: string
           updated_at: string
           using_app: boolean | null
+          photo_url: string | null
+          nationality: string | null
+          phone: string | null
+          city: string | null
+          profession: string | null
+          ajeer_expiry: string | null
+          performance_score: number | null
+          working_hours: number | null
+          orders_count: number | null
+          app_name: string | null
         }
         Insert: {
           archived_reason?: string | null
@@ -334,6 +427,16 @@ export type Database = {
           status?: string
           updated_at?: string
           using_app?: boolean | null
+          photo_url?: string | null
+          nationality?: string | null
+          phone?: string | null
+          city?: string | null
+          profession?: string | null
+          ajeer_expiry?: string | null
+          performance_score?: number | null
+          working_hours?: number | null
+          orders_count?: number | null
+          app_name?: string | null
         }
         Update: {
           archived_reason?: string | null
@@ -349,6 +452,16 @@ export type Database = {
           status?: string
           updated_at?: string
           using_app?: boolean | null
+          photo_url?: string | null
+          nationality?: string | null
+          phone?: string | null
+          city?: string | null
+          profession?: string | null
+          ajeer_expiry?: string | null
+          performance_score?: number | null
+          working_hours?: number | null
+          orders_count?: number | null
+          app_name?: string | null
         }
         Relationships: []
       }

@@ -90,11 +90,12 @@ export const Header = ({ onSidebarToggle }: HeaderProps) => {
       <header className="h-16 glass border-b border-card-border flex items-center justify-between px-6">
         {/* Left Section - Mobile Menu */}
         <div className="flex items-center gap-4">
-          <Button 
-            variant="ghost" 
+          <Button
+            variant="ghost"
             size="sm"
             onClick={onSidebarToggle}
-            className="lg:hidden"
+            className="lg:hidden touch-target"
+            aria-label="فتح القائمة الجانبية"
           >
             <Menu className="w-5 h-5" />
           </Button>
@@ -133,13 +134,15 @@ export const Header = ({ onSidebarToggle }: HeaderProps) => {
             variant="ghost"
             size="sm"
             onClick={() => setIsNotificationsOpen(true)}
-            className="relative"
+            className="relative touch-target"
+            aria-label={unreadCount > 0 ? `الإشعارات — ${unreadCount} غير مقروء` : "الإشعارات"}
           >
             <Bell className="w-5 h-5" />
             {unreadCount > 0 && (
-              <Badge 
-                variant="destructive" 
+              <Badge
+                variant="destructive"
                 className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center text-xs"
+                aria-hidden="true"
               >
                 {unreadCount > 99 ? "99+" : unreadCount}
               </Badge>
@@ -151,6 +154,8 @@ export const Header = ({ onSidebarToggle }: HeaderProps) => {
             variant="ghost"
             size="sm"
             onClick={() => setIsSettingsOpen(true)}
+            className="touch-target"
+            aria-label="الإعدادات"
           >
             <Settings className="w-5 h-5" />
           </Button>

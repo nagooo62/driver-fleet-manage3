@@ -2,7 +2,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
-import type { NotificationItem } from '@/types';
+import {
+  DEMO_MODE,
+  getDemoNotifications,
+  markAllDemoNotificationsRead,
+  markDemoNotificationRead,
+} from '@/lib/demoMode';
+import type { NotificationItem, NotificationRecord } from '@/types';
 
 const mapSeverity = (type: string | null | undefined): NotificationItem['severity'] => {
   switch (type) {
@@ -23,7 +29,7 @@ const mapSeverity = (type: string | null | undefined): NotificationItem['severit
   }
 };
 
-const toNotificationItem = (notification: Record<string, any>): NotificationItem => ({
+const toNotificationItem = (notification: NotificationRecord): NotificationItem => ({
   ...(notification as NotificationItem),
   severity: mapSeverity(notification.type),
   link: notification.target_type === 'driver' && notification.target_id ? `/drivers/${notification.target_id}` : undefined,
@@ -39,6 +45,19 @@ export function useNotifications(page = 1, pageSize = 20) {
     enabled: !!user,
     staleTime: 30 * 1000,
     queryFn: async () => {
+      if (DEMO_MODE) {
+        const notifications = [...getDemoNotifications()].sort((left, right) => right.created_at.localeCompare(left.created_at));
+        const from = (page - 1) * pageSize;
+        const items = notifications.slice(from, from + pageSize);
+
+        return {
+          items,
+          total: notifications.length,
+          page,
+          pageSize,
+        };
+      }
+
       const from = (page - 1) * pageSize;
       const to = from + pageSize - 1;
       const { data, error, count } = await supabase
@@ -68,6 +87,10 @@ export function useUnreadCount() {
     enabled: !!user,
     staleTime: 30 * 1000,
     queryFn: async () => {
+      if (DEMO_MODE) {
+        return getDemoNotifications().filter((notification) => !notification.is_read).length;
+      }
+
       const { count, error } = await supabase
         .from('notifications')
         .select('*', { count: 'exact', head: true })
@@ -81,6 +104,11 @@ export function useUnreadCount() {
 }
 
 export async function markAsRead(notificationId: string) {
+  if (DEMO_MODE) {
+    markDemoNotificationRead(notificationId);
+    return;
+  }
+
   const { error } = await supabase
     .from('notifications')
     .update({ is_read: true })
@@ -90,6 +118,11 @@ export async function markAsRead(notificationId: string) {
 }
 
 export async function markAllRead(userId?: string | null) {
+  if (DEMO_MODE) {
+    markAllDemoNotificationsRead();
+    return;
+  }
+
   const filter = userId ? `user_id.eq.${userId},user_id.is.null` : 'user_id.is.null';
   const { error } = await supabase
     .from('notifications')
@@ -129,7 +162,7 @@ export function useRealtimeNotifications() {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    if (!user?.id) return;
+    if (DEMO_MODE || !user?.id) return;
 
     const channel = supabase
       .channel(`notifications:${user.id}`)

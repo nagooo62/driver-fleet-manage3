@@ -2,6 +2,7 @@
 import { Building2, ServerCog, ShieldCheck, Sparkles, Wallet } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { supabase } from '@/integrations/supabase/client';
+import { DEMO_MODE, getDemoCompanySettings } from '@/lib/demoMode';
 import { PERMISSIONS, usePermissions } from '@/lib/rbac';
 import { useProfile } from '@/hooks/useProfile';
 
@@ -13,6 +14,10 @@ export default function SettingsPage() {
     queryKey: ['company-settings', 'settings-page'],
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
+      if (DEMO_MODE) {
+        return getDemoCompanySettings();
+      }
+
       const { data, error } = await supabase.from('company_settings').select('*').maybeSingle();
       if (error) throw error;
       return data;

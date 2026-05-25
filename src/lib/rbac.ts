@@ -1,6 +1,7 @@
-﻿import React, { useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
+import { DEMO_MODE, getDemoProfile, getDemoRole } from '@/lib/demoMode';
 import { supabase } from '@/integrations/supabase/client';
 import type { Permission, Profile, UserPermissionRow, UserRole } from '@/types';
 
@@ -86,6 +87,14 @@ export function usePermissions() {
     enabled: !!user?.id,
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
+      if (DEMO_MODE) {
+        return {
+          role: getDemoRole(),
+          profile: getDemoProfile(),
+          customPermissions: [] as Permission[],
+        };
+      }
+
       const [profileResult, permissionsResult] = await Promise.all([
         supabase.from('profiles').select('*').eq('id', user!.id).maybeSingle(),
         supabase.from('user_permissions').select('*').eq('user_id', user!.id),
@@ -134,6 +143,5 @@ export function PermissionGuard({ permission, fallback = null, children }: Permi
 
   if (loading) return null;
 
-  return can(permission) ? <>{children}</> : <>{fallback}</>;
+  return can(permission) ? children : fallback;
 }
-

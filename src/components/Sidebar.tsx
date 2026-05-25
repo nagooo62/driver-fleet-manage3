@@ -122,64 +122,88 @@ export const Sidebar = ({ currentView, onViewChange, isOpen, onToggle, closeAllM
       )}
       
       {/* Sidebar */}
-      <aside className={cn(
-        "fixed lg:sticky top-0 right-0 h-screen w-80 z-50 glass-sidebar p-4 transition-all duration-300 lg:translate-x-0 font-cairo",
-        isOpen ? "translate-x-0 animate-slide-in" : "translate-x-full"
-      )}>
+      <aside
+        className={cn(
+          "fixed lg:sticky top-0 right-0 h-screen w-72 z-50 glass-sidebar flex flex-col p-4 transition-transform duration-300 lg:translate-x-0 font-cairo",
+          isOpen ? "translate-x-0" : "translate-x-full"
+        )}
+        aria-label="القائمة الجانبية الرئيسية"
+      >
         {/* Brand Header */}
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-11 h-11 rounded-xl glass flex items-center justify-center font-bold text-lg">
+        <div className="flex items-center gap-3 mb-6 px-1">
+          <div className="w-10 h-10 rounded-xl glass flex items-center justify-center font-bold text-base logo-glow shrink-0 text-primary">
             RL
           </div>
-          <div className="flex-1">
-            <div className="text-sm font-semibold opacity-90">روائس للخدمات اللوجستية</div>
-            <div className="text-xs opacity-75">نظام إدارة المناديب والمركبات</div>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-semibold truncate">روائس اللوجستية</div>
+            <div className="text-[11px] text-muted-foreground truncate">إدارة المناديب والمركبات</div>
           </div>
-          <button 
+          <button
             onClick={onToggle}
-            className="lg:hidden p-2 rounded-lg hover:bg-accent/50 transition-colors"
+            aria-label="إغلاق القائمة"
+            className="lg:hidden touch-target rounded-lg hover:bg-white/10 transition-colors shrink-0"
           >
-            <Menu className="w-5 h-5" />
+            <Menu className="w-4 h-4" />
           </button>
         </div>
 
         {/* Navigation Groups */}
-        <nav className="space-y-2 overflow-y-auto flex-1 max-h-[calc(100vh-200px)] scrollbar-visible">
+        <nav
+          className="space-y-1.5 overflow-y-auto flex-1 scrollbar-thin pb-4"
+          aria-label="روابط التنقل"
+        >
           {sidebarGroups.map((group) => {
             const isCollapsed = collapsedGroups.has(group.id);
-            
+            const hasActive = group.items.some((i) => i.id === currentView);
+
             return (
-              <div key={group.id} className="glass rounded-lg overflow-hidden">
+              <div key={group.id} className="rounded-[16px] overflow-hidden border border-white/8">
                 {/* Group Header */}
                 <button
                   onClick={() => toggleGroup(group.id)}
-                  className="w-full flex items-center justify-between p-3 font-semibold text-sm hover:bg-accent/30 transition-colors"
+                  aria-expanded={!isCollapsed}
+                  className={cn(
+                    "w-full flex items-center justify-between px-3 py-2.5 font-semibold text-sm transition-colors",
+                    hasActive
+                      ? "bg-primary/10 text-primary"
+                      : "hover:bg-white/5 text-foreground/80"
+                  )}
                 >
                   <div className="flex items-center gap-2">
-                    {group.icon}
+                    <span className={cn("transition-colors", hasActive ? "text-primary" : "text-muted-foreground")}>
+                      {group.icon}
+                    </span>
                     <span>{group.label}</span>
                   </div>
-                  <ChevronDown className={cn(
-                    "w-4 h-4 transition-transform",
-                    isCollapsed ? "rotate-0" : "rotate-180"
-                  )} />
+                  <ChevronDown
+                    className={cn(
+                      "w-4 h-4 transition-transform duration-200 text-muted-foreground",
+                      !isCollapsed && "rotate-180"
+                    )}
+                  />
                 </button>
 
                 {/* Group Items */}
                 {!isCollapsed && (
-                  <div className="transition-all duration-200">
-                    {group.items.map((item) => (
-                      <button
-                        key={item.id}
-                        onClick={() => handleViewChange(item.id)}
-                        className={cn(
-                          "w-full text-right px-4 py-3 text-sm border-t border-border/20 transition-all duration-200 glass-hover",
-                          currentView === item.id ? "bg-accent font-semibold shadow-lg" : ""
-                        )}
-                      >
-                        {item.label}
-                      </button>
-                    ))}
+                  <div className="bg-white/[0.02]">
+                    {group.items.map((item) => {
+                      const isActive = currentView === item.id;
+                      return (
+                        <button
+                          key={item.id}
+                          onClick={() => handleViewChange(item.id)}
+                          aria-current={isActive ? "page" : undefined}
+                          className={cn(
+                            "w-full text-right px-4 py-2.5 text-sm border-t border-white/5 transition-colors duration-150",
+                            isActive
+                              ? "nav-item-active font-semibold"
+                              : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                          )}
+                        >
+                          {item.label}
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </div>

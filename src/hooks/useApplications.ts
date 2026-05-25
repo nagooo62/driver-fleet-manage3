@@ -1,5 +1,10 @@
 ﻿import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import {
+  DEMO_MODE,
+  getDemoApplicationRecords,
+  getDemoApplications,
+} from '@/lib/demoMode';
 import type { AppTrackingSummary, Application, Driver, DriverOperationRecord, PaginatedResult } from '@/types';
 
 export function useApplications() {
@@ -7,6 +12,10 @@ export function useApplications() {
     queryKey: ['applications', 'all'],
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
+      if (DEMO_MODE) {
+        return [...getDemoApplications()].sort((left, right) => left.display_name.localeCompare(right.display_name));
+      }
+
       const { data, error } = await supabase
         .from('applications')
         .select('*')
@@ -24,6 +33,56 @@ export function useAppTracking(slug?: string, page = 1, pageSize = 12) {
     enabled: !!slug,
     staleTime: 60 * 1000,
     queryFn: async () => {
+      if (DEMO_MODE) {
+        const application = getDemoApplications().find((item) => item.name === slug) ?? null;
+        if (!application) {
+          return {
+            application: null,
+            summary: {
+              application: null,
+              totalDrivers: 0,
+              verifiedDrivers: 0,
+              totalOrders: 0,
+              totalWorkingDays: 0,
+            } satisfies AppTrackingSummary,
+            records: {
+              items: [],
+              total: 0,
+              page,
+              pageSize,
+              totalPages: 1,
+              hasNextPage: false,
+              hasPreviousPage: false,
+            } satisfies PaginatedResult<DriverOperationRecord>,
+          };
+        }
+
+        const allRecords = getDemoApplicationRecords().filter((record) => record.application_id === application.id);
+        const from = (page - 1) * pageSize;
+        const items = allRecords.slice(from, from + pageSize);
+        const totalPages = Math.max(1, Math.ceil(allRecords.length / pageSize));
+
+        return {
+          application,
+          summary: {
+            application,
+            totalDrivers: allRecords.length,
+            verifiedDrivers: allRecords.filter((row) => row.is_verified).length,
+            totalOrders: allRecords.reduce((sum, row) => sum + (row.orders_count ?? 0), 0),
+            totalWorkingDays: allRecords.reduce((sum, row) => sum + (row.working_days ?? 0), 0),
+          } satisfies AppTrackingSummary,
+          records: {
+            items,
+            total: allRecords.length,
+            page,
+            pageSize,
+            totalPages,
+            hasNextPage: page < totalPages,
+            hasPreviousPage: page > 1,
+          } satisfies PaginatedResult<DriverOperationRecord>,
+        };
+      }
+
       const appResult = await supabase
         .from('applications')
         .select('*')

@@ -12,6 +12,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
 import { useRealtimeNotifications, useUnreadCount } from '@/hooks/useNotifications';
 import { supabase } from '@/integrations/supabase/client';
+import { DEMO_MODE, getDemoCompanySettings } from '@/lib/demoMode';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -42,6 +43,10 @@ export function Topbar({ onOpenMenu }: TopbarProps) {
     queryKey: ['company-settings', 'header'],
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
+      if (DEMO_MODE) {
+        return getDemoCompanySettings();
+      }
+
       const { data, error } = await supabase.from('company_settings').select('company_name').maybeSingle();
       if (error) throw error;
       return data;

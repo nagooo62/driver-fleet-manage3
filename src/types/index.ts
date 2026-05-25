@@ -18,6 +18,29 @@ export type CarUpdate = TablesUpdate<'cars'>;
 export type CarStatus = Car['status'];
 
 export type Application = Tables<'applications'>;
+export type DriverDocument = Tables<'driver_documents'>;
+export type DriverDocumentInsert = TablesInsert<'driver_documents'>;
+
+export type DocType =
+  | 'iqama_doc'
+  | 'license_doc'
+  | 'driver_card'
+  | 'ajeer_permit'
+  | 'operation_card'
+  | 'registration'
+  | 'insurance_doc'
+  | 'medical_doc';
+
+export const DOC_TYPE_LABELS: Record<DocType, string> = {
+  iqama_doc:      'صورة الإقامة',
+  license_doc:    'صورة الرخصة',
+  driver_card:    'بطاقة السائق',
+  ajeer_permit:   'تصريح أجير',
+  operation_card: 'كرت التشغيل',
+  registration:   'الاستمارة',
+  insurance_doc:  'التأمين',
+  medical_doc:    'الفحص الطبي',
+};
 export type NotificationRecord = Tables<'notifications'>;
 export type AuditLog = Tables<'audit_logs'>;
 export type DriverApplication = Tables<'driver_applications'>;

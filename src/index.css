@@ -1,4 +1,5 @@
 ﻿@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Changa:wght@500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700&display=swap");
 
 @tailwind base;
 @tailwind components;
@@ -111,6 +112,10 @@
     background: hsl(38 89% 63% / 0.12);
   }
 
+  body {
+    line-height: 1.75;
+  }
+
   h1,
   h2,
   h3,
@@ -118,7 +123,21 @@
   h5,
   h6 {
     font-family: "Changa", "IBM Plex Sans Arabic", sans-serif;
-    letter-spacing: -0.02em;
+    /* لا نستخدم letter-spacing سلبي على العناوين العربية */
+    letter-spacing: 0;
+    line-height: 1.4;
+  }
+
+  /* ─── Focus Visible Ring (إمكانية الوصول بلوحة المفاتيح) ─── */
+  :focus-visible {
+    outline: 2px solid hsl(var(--primary));
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  /* إزالة outline افتراضي والاعتماد على :focus-visible */
+  :focus:not(:focus-visible) {
+    outline: none;
   }
 }
 
@@ -153,22 +172,53 @@
   }
 
   .glass-hover {
-    @apply transition-all duration-300 ease-out;
+    @apply transition-all duration-200 ease-out;
   }
 
   .glass-hover:hover {
-    transform: translateY(-2px);
     background: hsl(0 0% 100% / 0.11);
     box-shadow: var(--shadow-panel);
   }
 
   .glass-button-hover {
-    @apply transition-all duration-300 ease-out;
+    @apply transition-all duration-200 ease-out;
   }
 
   .glass-button-hover:hover {
-    transform: translateY(-1px);
     box-shadow: var(--shadow-panel);
+  }
+
+  /* ─── Sidebar Active Indicator ─── */
+  .nav-item-active {
+    background: hsl(var(--primary) / 0.15);
+    color: hsl(var(--primary));
+    border-right: 3px solid hsl(var(--primary));
+  }
+
+  /* ─── حد أدنى لمساحة اللمس (44px) ─── */
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* ─── Skeleton shimmer ─── */
+  .skeleton-shimmer {
+    background: linear-gradient(
+      90deg,
+      hsl(0 0% 100% / 0.05) 0%,
+      hsl(0 0% 100% / 0.12) 50%,
+      hsl(0 0% 100% / 0.05) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.6s infinite;
+  }
+
+  @keyframes shimmer {
+    from { background-position: -200% 0; }
+    to   { background-position: 200% 0; }
   }
 
   .surface-divider {
@@ -292,4 +342,36 @@
     transform: translateX(0);
     opacity: 1;
   }
+}
+
+/* ─── إمكانية الوصول: إيقاف الحركة للمستخدمين الحساسين ─── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .section-enter,
+  .table-enter,
+  .fade-enter,
+  .animate-fade-in,
+  .animate-slide-in,
+  .animate-scale-in,
+  .skeleton-shimmer {
+    animation: none !important;
+  }
+
+  .glass-hover:hover,
+  .glass-button-hover:hover {
+    transform: none !important;
+  }
+}
+
+/* ─── فونت Cairo للـ Sidebar القديم ─── */
+.font-cairo {
+  font-family: "Cairo", "IBM Plex Sans Arabic", sans-serif;
 }

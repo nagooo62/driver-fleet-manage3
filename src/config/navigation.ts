@@ -1,4 +1,4 @@
-﻿import {
+import {
   Activity,
   Bot,
   CarFront,
@@ -86,6 +86,13 @@ export const navigationItems: NavigationItem[] = [
     icon: Settings,
     permission: 'settings:read',
   },
+  {
+    href: '/testing',
+    label: 'مختبر الميزات',
+    subtitle: 'محاكاة الأنظمة والتحقق والقواعد',
+    icon: Activity,
+    permission: 'settings:read',
+  },
 ];
 
 export const appCatalog: AppCatalogItem[] = [
@@ -137,7 +144,7 @@ export function resolveRouteMeta(pathname: string) {
   if (pathname.startsWith('/cars')) {
     return {
       title: 'إدارة السيارات',
-      subtitle: 'تفويض، جاهزية، وتعطّل الأسطول',
+      subtitle: 'تفويض، جاهزية، وتعطل الأسطول',
       highlight: 'روائس - الحل اللوجستي الذكي',
       icon: CarFront,
     };
@@ -194,6 +201,15 @@ export function resolveRouteMeta(pathname: string) {
       subtitle: 'صلاحيات، تنبيهات، وتجهيزات SaaS',
       highlight: 'روائس - الحل اللوجستي الذكي',
       icon: Settings,
+    };
+  }
+
+  if (pathname.startsWith('/testing')) {
+    return {
+      title: 'مختبر الميزات (Feature Lab)',
+      subtitle: 'محاكاة الأنظمة والتحقق وقواعد الأعمال',
+      highlight: 'روائس - مختبر التحقق والمطابقة',
+      icon: Activity,
     };
   }
 

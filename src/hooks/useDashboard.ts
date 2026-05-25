@@ -1,6 +1,14 @@
 ﻿import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { fetchExpiringDocuments } from '@/hooks/useDrivers';
+import {
+  DEMO_MODE,
+  getDemoApplications,
+  getDemoApplicationRecords,
+  getDemoCars,
+  getDemoDrivers,
+  getDemoNotifications,
+} from '@/lib/demoMode';
 import type { DashboardStats } from '@/types';
 
 export function useDashboardStats() {
@@ -8,6 +16,32 @@ export function useDashboardStats() {
     queryKey: ['dashboard', 'stats'],
     staleTime: 60 * 1000,
     queryFn: async () => {
+      if (DEMO_MODE) {
+        const drivers = getDemoDrivers();
+        const cars = getDemoCars();
+        const applications = getDemoApplications().filter((application) => application.is_active);
+        const notifications = getDemoNotifications();
+        const expiringDocuments = await fetchExpiringDocuments(30);
+        const performanceRows = getDemoApplicationRecords();
+        const totalOrders = performanceRows.reduce((sum, row) => sum + (row.orders_count ?? 0), 0);
+        const totalWorkingDays = performanceRows.reduce((sum, row) => sum + (row.working_days ?? 0), 0);
+        const verifiedRecords = performanceRows.filter((row) => row.is_verified).length;
+        const averageOrdersPerDay = totalWorkingDays > 0 ? totalOrders / totalWorkingDays : 0;
+
+        return {
+          totalDrivers: drivers.length,
+          activeDrivers: drivers.filter((driver) => ['accepted', 'sponsored'].includes(driver.status)).length,
+          totalCars: cars.length,
+          delegatedCars: cars.filter((car) => car.status === 'delegated').length,
+          outOfServiceCars: cars.filter((car) => car.status === 'out_of_service').length,
+          expiringDocuments: expiringDocuments.length,
+          realtimeAlerts: notifications.filter((notification) => !notification.is_read).length,
+          performanceScore: Math.min(100, Math.round(averageOrdersPerDay * 10)),
+          utilizationRate: performanceRows.length > 0 ? Math.round((verifiedRecords / performanceRows.length) * 100) : 0,
+          totalApplications: applications.length,
+        } satisfies DashboardStats;
+      }
+
       const [
         driversTotal,
         activeDrivers,
