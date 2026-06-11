@@ -15,6 +15,7 @@ import DriverDetailPage from '@/pages/DriverDetailPage';
 import CarsPage from '@/pages/CarsPage';
 import AppTrackingPage from '@/pages/AppTrackingPage';
 import ReportsPage from '@/pages/ReportsPage';
+import ReportsProPage from '@/pages/ReportsProPage';
 import SettingsPage from '@/pages/SettingsPage';
 import GpsTrackingPage from '@/pages/GpsTrackingPage';
 import AiAnalyticsPage from '@/pages/AiAnalyticsPage';
@@ -51,6 +52,7 @@ const App = () => (
                 <Route path="/cars" element={<CarsPage />} />
                 <Route path="/apps/:slug" element={<AppTrackingPage />} />
                 <Route path="/reports" element={<ReportsPage />} />
+                <Route path="/reports-pro" element={<ReportsProPage />} />
                 <Route path="/gps" element={<GpsTrackingPage />} />
                 <Route path="/ai" element={<AiAnalyticsPage />} />
                 <Route path="/finance" element={<FinancePage />} />

@@ -3,6 +3,7 @@ import {
   Bot,
   CarFront,
   ChartColumnBig,
+  FileSpreadsheet,
   LayoutDashboard,
   MapPin,
   Route,
@@ -56,6 +57,13 @@ export const navigationItems: NavigationItem[] = [
     label: 'التقارير',
     subtitle: 'التحليلات والمطابقة المالية',
     icon: ChartColumnBig,
+    permission: 'reports:read',
+  },
+  {
+    href: '/reports-pro',
+    label: 'تقارير المناديب Pro',
+    subtitle: 'رفع ملفات التطبيقات وتحليلها',
+    icon: FileSpreadsheet,
     permission: 'reports:read',
   },
   {
@@ -156,6 +164,15 @@ export function resolveRouteMeta(pathname: string) {
       subtitle: 'ربط الأداء التشغيلي بالمنصات المختلفة',
       highlight: 'تحديثات فورية للمناديب',
       icon: Route,
+    };
+  }
+
+  if (pathname.startsWith('/reports-pro')) {
+    return {
+      title: 'تقارير المناديب Pro',
+      subtitle: 'رفع ملفات ToYou وهنقرستيشن وتحليلها',
+      highlight: 'روائس - تحليل تقارير التطبيقات',
+      icon: FileSpreadsheet,
     };
   }
 

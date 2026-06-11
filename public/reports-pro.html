@@ -1,0 +1,2068 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>لوحة تحكم المناديب — روائس اللوجستي</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root{
+  --bg:#06080e;--surface:#0c1020;--card:rgba(255,255,255,.04);--card2:rgba(255,255,255,.07);
+  --border:rgba(255,255,255,.07);--border2:rgba(255,255,255,.12);
+  --accent:#f59e0b;--accent2:#fbbf24;--accent-dim:rgba(245,158,11,.10);
+  --green:#10b981;--green-dim:rgba(16,185,129,.10);
+  --blue:#3b82f6;--blue-dim:rgba(59,130,246,.10);
+  --purple:#a78bfa;--purple-dim:rgba(167,139,250,.10);
+  --red:#ef4444;--red-dim:rgba(239,68,68,.10);
+  --orange:#f97316;--orange-dim:rgba(249,115,22,.10);
+  --silver:#94a3b8;--bronze:#cd853f;
+  --text:#f1f5f9;--text2:#94a3b8;--text3:#475569;
+  --r:12px;--r-lg:18px;
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:'Cairo',system-ui,sans-serif;min-height:100vh;direction:rtl}
+body::before{content:'';position:fixed;inset:0;background:
+  radial-gradient(ellipse 100% 50% at 50% -10%,rgba(245,158,11,.06) 0%,transparent 55%),
+  radial-gradient(ellipse 50% 40% at 90% 85%,rgba(59,130,246,.04) 0%,transparent 50%);
+  pointer-events:none;z-index:0}
+.wrap{max-width:1160px;margin:0 auto;padding:0 18px;position:relative;z-index:1}
+a{color:inherit;text-decoration:none}
+
+/* ── HEADER ── */
+header{padding:20px 0 16px;border-bottom:1px solid var(--border);margin-bottom:28px}
+.hdr{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:12px}
+.brand-logo{width:42px;height:42px;background:var(--accent-dim);border:1px solid rgba(245,158,11,.2);border-radius:var(--r);display:flex;align-items:center;justify-content:center;color:var(--accent)}
+.brand h1{font-size:17px;font-weight:900}
+.brand p{font-size:11px;color:var(--text2);margin-top:1px}
+.hdr-meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.period-wrap{display:flex;align-items:center;gap:7px}
+.period-lbl{font-size:11.5px;color:var(--text2);font-weight:600}
+.mini-input{background:rgba(255,255,255,.05);border:1px solid var(--border2);border-radius:8px;padding:6px 11px;font-size:12px;color:var(--text);font-family:inherit;outline:none;width:120px;direction:rtl;transition:border-color .2s}
+.mini-input:focus{border-color:var(--accent)}
+.live{display:flex;align-items:center;gap:7px;background:var(--green-dim);border:1px solid rgba(16,185,129,.18);border-radius:100px;padding:5px 12px;font-size:11.5px;font-weight:700;color:var(--green)}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:blink 2s infinite}
+@keyframes blink{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.7)}}
+
+/* ── TABS ── */
+.tab-bar{display:flex;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:14px;padding:4px;gap:4px;margin-bottom:28px;backdrop-filter:blur(8px)}
+.tab-btn{flex:1;padding:10px 20px;border:none;border-radius:10px;background:transparent;color:var(--text2);font-family:inherit;font-size:13.5px;font-weight:800;cursor:pointer;transition:all .25s;display:flex;align-items:center;justify-content:center;gap:8px}
+.tab-btn.active{background:var(--accent);color:#000;box-shadow:0 4px 16px rgba(245,158,11,.3)}
+.tab-btn:not(.active):hover{background:rgba(255,255,255,.06);color:var(--text)}
+.panel{display:none}
+.panel.active{display:block}
+
+/* ── SECTION TITLE ── */
+.sec-ttl{font-size:13px;font-weight:700;color:var(--text2);margin-bottom:14px;display:flex;align-items:center;gap:9px}
+.sec-ttl::before{content:'';width:3px;height:15px;background:var(--accent);border-radius:2px;display:block}
+
+/* ── GLASS CARD ── */
+.g-card{background:var(--card);backdrop-filter:blur(12px);border:1px solid var(--border);border-radius:var(--r-lg)}
+
+/* ── UPLOAD GRID ── */
+.up-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:22px}
+.up-grid.tri{grid-template-columns:1fr 1fr 1fr}
+.u-card{background:var(--card);border:1.5px solid var(--border);border-radius:var(--r-lg);padding:17px;cursor:pointer;transition:all .25s;position:relative;overflow:hidden;user-select:none}
+.u-card::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--accent),transparent);opacity:0;transition:opacity .3s}
+.u-card:hover,.u-card.over{border-color:rgba(245,158,11,.45);background:rgba(255,255,255,.06);transform:translateY(-2px);box-shadow:0 10px 32px rgba(245,158,11,.1)}
+.u-card:hover::after,.u-card.over::after{opacity:1}
+.u-card.done{border-color:rgba(16,185,129,.35);background:rgba(16,185,129,.04)}
+.u-card.done::after{background:linear-gradient(90deg,transparent,var(--green),transparent);opacity:1}
+.u-head{display:flex;align-items:flex-start;gap:11px;margin-bottom:11px}
+.u-ico{width:36px;height:36px;border-radius:9px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.u-ico.a{background:var(--accent-dim);color:var(--accent)}.u-ico.b{background:var(--blue-dim);color:var(--blue)}
+.u-ico.g{background:var(--green-dim);color:var(--green)}.u-ico.p{background:var(--purple-dim);color:var(--purple)}
+.u-ico.o{background:var(--orange-dim);color:var(--orange)}
+.u-ttl{font-size:13px;font-weight:800;line-height:1.3}
+.u-sub{font-size:11px;color:var(--text2);margin-top:2px}
+.dz{border:1.5px dashed var(--border2);border-radius:9px;padding:14px 10px;text-align:center;transition:all .25s}
+.u-card:hover .dz,.u-card.over .dz{border-color:var(--accent);background:var(--accent-dim)}
+.u-card.done .dz{border-color:rgba(16,185,129,.35);background:var(--green-dim)}
+.dz-ic{color:var(--text3);margin-bottom:4px;transition:color .2s}
+.u-card:hover .dz-ic,.u-card.over .dz-ic{color:var(--accent)}
+.u-card.done .dz-ic{color:var(--green)}
+.dz-t{font-size:11.5px;color:var(--text2)}.dz-h{font-size:10.5px;color:var(--text3);margin-top:2px}
+.f-badge{display:none;align-items:center;gap:7px;margin-top:8px;padding:6px 11px;background:var(--green-dim);border:1px solid rgba(16,185,129,.2);border-radius:7px;font-size:11.5px;font-weight:700;color:var(--green)}
+.u-card.done .f-badge{display:flex}
+.u-card.done .dz-t,.u-card.done .dz-h{display:none}
+.f-nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:ltr;flex:1}
+input[type="file"]{display:none}
+.opt-lbl{font-size:11px;color:var(--text3);margin-top:4px;text-align:center}
+
+/* ── ACTION ── */
+.action{text-align:center;margin-bottom:32px}
+.btn-merge{display:inline-flex;align-items:center;gap:9px;background:var(--accent);color:#000;border:none;border-radius:var(--r);padding:13px 34px;font-size:14px;font-weight:900;font-family:inherit;cursor:pointer;transition:all .25s;box-shadow:0 4px 18px rgba(245,158,11,.3)}
+.btn-merge:hover:not(:disabled){background:var(--accent2);transform:translateY(-2px);box-shadow:0 8px 26px rgba(245,158,11,.45)}
+.btn-merge:disabled{opacity:.35;cursor:not-allowed;transform:none;box-shadow:none}
+.spinner{width:16px;height:16px;border:2px solid rgba(0,0,0,.2);border-top-color:#000;border-radius:50%;animation:spin .65s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.up-hint{font-size:12.5px;color:var(--text2);margin-top:8px}
+.up-hint b{color:var(--accent)}
+
+/* ── RESULTS ── */
+.results{display:none}
+
+/* ── 4-STAT GRID ── */
+.s4{display:grid;grid-template-columns:repeat(4,1fr);gap:11px;margin-bottom:20px}
+.s8{display:grid;grid-template-columns:repeat(4,1fr);gap:11px;margin-bottom:20px}
+.s-card{background:var(--card);backdrop-filter:blur(10px);border:1px solid var(--border);border-radius:var(--r);padding:15px 12px;text-align:center;animation:fadeUp .4s ease both;position:relative;overflow:hidden}
+.s-card::before{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;background:currentColor;opacity:.18}
+.s-card:nth-child(1){animation-delay:.00s}.s-card:nth-child(2){animation-delay:.06s}
+.s-card:nth-child(3){animation-delay:.12s}.s-card:nth-child(4){animation-delay:.18s}
+.s-card:nth-child(5){animation-delay:.24s}.s-card:nth-child(6){animation-delay:.30s}
+.s-card:nth-child(7){animation-delay:.36s}.s-card:nth-child(8){animation-delay:.42s}
+.s-val{font-size:26px;font-weight:900;line-height:1;margin-bottom:3px}
+.s-lbl{font-size:11px;color:var(--text2);font-weight:600}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── PODIUM ── */
+.podium{display:grid;grid-template-columns:repeat(3,1fr);gap:11px;margin-bottom:20px}
+.pod{background:var(--card);border:1.5px solid var(--border);border-radius:var(--r-lg);padding:18px 14px;text-align:center;position:relative;overflow:hidden;animation:fadeUp .4s ease both;transition:transform .25s}
+.pod:hover{transform:translateY(-3px)}
+.pod::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.pod.g1{border-color:rgba(245,158,11,.4)}.pod.g1::before{background:linear-gradient(90deg,transparent,var(--accent),transparent)}
+.pod.g2{border-color:rgba(148,163,184,.3)}.pod.g2::before{background:linear-gradient(90deg,transparent,var(--silver),transparent)}
+.pod.g3{border-color:rgba(205,133,63,.35)}.pod.g3::before{background:linear-gradient(90deg,transparent,var(--bronze),transparent)}
+.pod-medal{font-size:26px;margin-bottom:6px}
+.pod-name{font-size:13.5px;font-weight:800;margin-bottom:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pod-id{font-size:10.5px;color:var(--text3);margin-bottom:11px}
+.pod-stats{display:flex;justify-content:center;gap:14px}
+.pst-v{font-size:18px;font-weight:900;line-height:1}
+.pst-l{font-size:9.5px;color:var(--text2);margin-top:1px}
+.pod.g1 .pst-v{color:var(--accent)}.pod.g2 .pst-v{color:var(--silver)}.pod.g3 .pst-v{color:var(--bronze)}
+.pod-divider{width:1px;background:var(--border2);align-self:stretch}
+
+/* ── CHARTS ── */
+.ch-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px}
+.ch-box{background:var(--card);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px 18px;animation:fadeUp .4s ease .2s both}
+.ch-ttl{font-size:12.5px;font-weight:700;color:var(--text2);margin-bottom:12px;display:flex;align-items:center;gap:7px}
+.ch-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.ch-canvas{position:relative;height:180px;direction:ltr}
+.ch-canvas.tall{height:220px}
+
+/* ── FILTER BAR ── */
+.filter-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;padding:12px 16px;background:var(--card);border:1px solid var(--border);border-radius:var(--r-lg)}
+.filter-bar select,.filter-bar input{background:rgba(255,255,255,.06);border:1px solid var(--border2);border-radius:8px;padding:7px 11px;font-size:12px;color:var(--text);font-family:inherit;outline:none;direction:rtl;transition:border-color .2s}
+.filter-bar select:focus,.filter-bar input:focus{border-color:var(--accent)}
+.filter-bar select option{background:#1a2234;color:var(--text)}
+.search-wrap{flex:1;min-width:160px}
+.search-wrap input{width:100%}
+.filter-lbl{font-size:11.5px;color:var(--text2);font-weight:600;white-space:nowrap}
+
+/* ── SUB TABS ── */
+.sub-tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:12px}
+.sub-btn{padding:6px 14px;border:1px solid var(--border2);border-radius:100px;background:transparent;color:var(--text2);font-family:inherit;font-size:11.5px;font-weight:700;cursor:pointer;transition:all .2s;white-space:nowrap}
+.sub-btn:hover{border-color:var(--accent);color:var(--accent)}
+.sub-btn.active{background:var(--accent);color:#000;border-color:var(--accent)}
+.sub-btn .cnt{font-size:10px;background:rgba(255,255,255,.15);border-radius:100px;padding:1px 6px;margin-right:4px}
+
+/* ── TABLE ── */
+.tbl-wrap{background:var(--card);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;margin-bottom:18px;animation:fadeUp .4s ease .28s both}
+.tbl-hdr{display:flex;align-items:center;justify-content:space-between;padding:13px 17px;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:8px}
+.tbl-ttl{font-size:13.5px;font-weight:800}
+.tbl-meta{font-size:11.5px;color:var(--text2);background:rgba(255,255,255,.06);padding:4px 11px;border-radius:100px}
+.tbl-scroll{overflow-x:auto;max-height:420px;overflow-y:auto}
+table{width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap}
+thead th{background:#080c16;padding:9px 13px;text-align:center;font-size:11px;font-weight:700;color:var(--text2);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:2;cursor:pointer;user-select:none;transition:color .2s}
+thead th:hover{color:var(--accent)}
+thead th.sa::after{content:' ↑';color:var(--accent)}
+thead th.sd::after{content:' ↓';color:var(--accent)}
+tbody tr{border-bottom:1px solid rgba(255,255,255,.03);transition:background .15s}
+tbody tr:last-child{border-bottom:none}
+tbody tr:hover{background:rgba(255,255,255,.025)}
+tbody tr.tr1{background:rgba(245,158,11,.04)}
+tbody tr.tr2{background:rgba(148,163,184,.03)}
+tbody tr.tr3{background:rgba(205,133,63,.03)}
+tbody td{padding:9px 13px;text-align:center;color:var(--text)}
+tbody td.td-name{text-align:right;font-weight:700}
+tbody td.td-id{color:var(--text2);font-size:11px}
+.bdg{display:inline-block;padding:2px 9px;border-radius:100px;font-size:10.5px;font-weight:800;white-space:nowrap}
+.bdg-active{background:var(--green-dim);color:var(--green)}
+.bdg-inactive{background:rgba(100,116,139,.12);color:var(--text2)}
+.bdg-disabled{background:var(--red-dim);color:var(--red)}
+.bdg-waiting{background:var(--accent-dim);color:var(--accent)}
+.bdg-achieved{background:var(--blue-dim);color:var(--blue)}
+.bdg-below{background:var(--orange-dim);color:var(--orange)}
+.bdg-hi{background:var(--green-dim);color:var(--green)}
+.bdg-mid{background:var(--accent-dim);color:var(--accent)}
+.bdg-lo{background:var(--red-dim);color:var(--red)}
+
+/* ── EXPORT BAR ── */
+.exp-bar{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;background:var(--card);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px 20px;animation:fadeUp .4s ease .32s both}
+.exp-info h3{font-size:14px;font-weight:800}
+.exp-info p{font-size:11.5px;color:var(--text2);margin-top:2px}
+.exp-acts{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.exp-input{background:rgba(255,255,255,.05);border:1.5px solid var(--border2);border-radius:9px;padding:8px 12px;font-size:12.5px;font-family:inherit;color:var(--text);outline:none;transition:border-color .2s;width:200px;direction:rtl}
+.exp-input:focus{border-color:var(--accent)}
+.btn-exp{display:inline-flex;align-items:center;gap:7px;background:transparent;border:1.5px solid var(--green);color:var(--green);border-radius:var(--r);padding:8px 18px;font-size:13px;font-weight:800;font-family:inherit;cursor:pointer;transition:all .25s}
+.btn-exp:hover{background:var(--green-dim);transform:translateY(-1px)}
+.btn-print{display:inline-flex;align-items:center;gap:7px;background:transparent;border:1.5px solid var(--blue);color:var(--blue);border-radius:var(--r);padding:8px 16px;font-size:13px;font-weight:800;font-family:inherit;cursor:pointer;transition:all .25s}
+.btn-print:hover{background:var(--blue-dim);transform:translateY(-1px)}
+.btn-rst{display:inline-flex;align-items:center;gap:7px;background:transparent;border:1px solid var(--border2);color:var(--text2);border-radius:var(--r);padding:7px 16px;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer;transition:all .25s}
+.btn-rst:hover{border-color:var(--red);color:var(--red)}
+.rst-row{text-align:center;margin-top:12px}
+
+/* ── TARGET INPUT ── */
+.tgt-row{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:22px;background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:12px 20px;flex-wrap:wrap}
+.tgt-lbl{font-size:13px;font-weight:700;color:var(--text2)}
+.tgt-input{background:rgba(255,255,255,.06);border:1px solid var(--border2);border-radius:8px;padding:6px 12px;font-size:13px;color:var(--accent);font-family:inherit;font-weight:800;outline:none;width:70px;text-align:center;direction:ltr}
+.tgt-input:focus{border-color:var(--accent)}
+.tgt-hint{font-size:12px;color:var(--text3)}
+
+/* ── PERIOD BADGE ── */
+.prd-badge{display:inline-flex;align-items:center;gap:7px;background:var(--card);border:1px solid var(--border2);border-radius:100px;padding:6px 14px;font-size:12.5px;font-weight:700;color:var(--text2);margin-bottom:22px}
+.prd-badge span{color:var(--accent)}
+
+/* ── STEPS ── */
+.steps{display:flex;align-items:center;justify-content:center;gap:0;margin-bottom:28px;flex-wrap:wrap;row-gap:6px}
+.step{display:flex;align-items:center;gap:8px}
+.step-n{width:26px;height:26px;border-radius:50%;border:2px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:800;color:var(--text3);transition:all .3s}
+.step-lbl{font-size:12px;color:var(--text3);font-weight:600;transition:all .3s}
+.step-line{width:44px;height:2px;background:var(--border);margin:0 5px;transition:background .4s}
+.step.active .step-n{border-color:var(--accent);background:var(--accent-dim);color:var(--accent)}
+.step.active .step-lbl{color:var(--text)}
+.step.done .step-n{border-color:var(--green);background:var(--green-dim);color:var(--green)}
+.step.done .step-lbl{color:var(--green)}
+.step.done~.step-line,.step.active~.step-line{background:var(--accent)}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:#1a2234;border:1px solid var(--border2);border-radius:var(--r);padding:10px 20px;font-size:12.5px;font-weight:700;display:flex;align-items:center;gap:8px;z-index:1000;min-width:240px;justify-content:center;transition:transform .3s cubic-bezier(.34,1.56,.64,1);box-shadow:0 8px 32px rgba(0,0,0,.5)}
+.toast.show{transform:translateX(-50%) translateY(0)}
+.toast.ok{color:var(--green);border-color:rgba(16,185,129,.3)}
+.toast.err{color:var(--red);border-color:rgba(239,68,68,.3)}
+footer{text-align:center;padding:22px 0 16px;font-size:11px;color:var(--text3)}
+
+/* ── PRINT NAMES SECTION (screen: hidden) ── */
+.ty-print-names{display:none}
+
+/* ── PRINT ── */
+@media print{
+  body{background:#fff;color:#000;direction:rtl}
+  body::before,header .hdr-meta,.action,.exp-bar,.rst-row,.btn-print,.steps,.toast,.tab-bar,.filter-bar,.sub-tabs,.tbl-hdr,.tbl-meta{display:none!important}
+  /* إخفاء الجدول الكبير — هيتعوض بقائمة الطباعة */
+  .tbl-wrap{display:none!important}
+  .g-card,.ch-box,.pod,.s-card{border:1px solid #ddd!important;background:#fff!important}
+  thead th{background:#f5f5f5!important;color:#333!important}
+  tbody td{color:#000!important}
+  .wrap{padding:0}
+  /* قسم الطباعة المخصص */
+  .ty-print-names{
+    display:block!important;
+    margin-top:18px;
+    page-break-inside:avoid;
+  }
+  .ty-print-names h3{
+    font-size:13px;font-weight:700;
+    border-bottom:2px solid #333;
+    padding-bottom:5px;margin-bottom:10px;
+    direction:rtl;
+  }
+  .ty-print-names table{
+    width:100%;border-collapse:collapse;font-size:12px;direction:rtl;
+  }
+  .ty-print-names th{
+    background:#f0f0f0!important;color:#000!important;
+    padding:6px 10px;text-align:right;font-weight:700;
+    border:1px solid #bbb;
+  }
+  .ty-print-names td{
+    padding:5px 10px;border:1px solid #ddd;color:#000!important;text-align:right;
+  }
+  .ty-print-names tr:nth-child(even) td{background:#fafafa!important}
+  .ty-print-names .pn-rank{width:30px;text-align:center!important;font-weight:700}
+  .ty-print-names .pn-orders{font-weight:800;color:#000!important}
+}
+
+/* ── RESPONSIVE ── */
+@media(max-width:720px){
+  .up-grid,.up-grid.tri{grid-template-columns:1fr}
+  .s4,.s8{grid-template-columns:1fr 1fr}
+  .podium,.ch-row{grid-template-columns:1fr}
+  .exp-bar{flex-direction:column;align-items:flex-start}
+  .exp-acts{flex-direction:column;width:100%}
+  .exp-input,.btn-exp{width:100%}
+  .btn-exp{justify-content:center}
+}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:var(--surface)}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+
+/* ── MODE TOGGLE ── */
+.mode-toggle{display:flex;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:10px;padding:3px;gap:3px;margin-bottom:18px}
+.mode-btn{flex:1;padding:9px 16px;border:none;border-radius:7px;background:transparent;color:var(--text2);font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:8px}
+.mode-btn.active{background:var(--card2);color:var(--text);box-shadow:0 2px 8px rgba(0,0,0,.3)}
+.mode-btn:not(.active):hover{background:rgba(255,255,255,.05);color:var(--text)}
+
+/* ── API BOX ── */
+.api-box{background:var(--card);backdrop-filter:blur(12px);border:1px solid var(--border2);border-radius:var(--r-lg);padding:20px 22px;margin-bottom:20px}
+.api-title{font-size:13.5px;font-weight:800;margin-bottom:18px;display:flex;align-items:center;gap:9px}
+.api-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+.date-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+.api-group{display:flex;flex-direction:column;gap:6px}
+.api-lbl{font-size:11.5px;font-weight:700;color:var(--text2)}
+.api-inp{background:rgba(255,255,255,.06);border:1.5px solid var(--border2);border-radius:9px;padding:9px 13px;font-size:12.5px;color:var(--text);font-family:inherit;outline:none;transition:border-color .2s;width:100%;direction:ltr}
+.api-inp:focus{border-color:var(--blue)}
+.api-inp-wrap{position:relative}
+.api-inp-wrap .api-inp{padding-right:40px}
+.api-eye{position:absolute;top:50%;right:11px;transform:translateY(-50%);background:none;border:none;color:var(--text3);cursor:pointer;padding:2px;display:flex;align-items:center;transition:color .2s}
+.api-eye:hover{color:var(--text2)}
+.api-status{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;padding:9px 13px;border-radius:9px;margin-bottom:12px;transition:all .3s}
+.api-status.idle{background:rgba(100,116,139,.1);color:var(--text3)}
+.api-status.ok{background:var(--green-dim);color:var(--green);border:1px solid rgba(16,185,129,.2)}
+.api-status.err{background:var(--red-dim);color:var(--red);border:1px solid rgba(239,68,68,.2)}
+.api-status.loading{background:var(--blue-dim);color:var(--blue);border:1px solid rgba(59,130,246,.2)}
+.api-log{background:rgba(0,0,0,.35);border:1px solid var(--border);border-radius:8px;padding:10px 13px;font-size:10.5px;color:var(--text2);font-family:'Courier New',monospace;direction:ltr;text-align:left;max-height:110px;overflow-y:auto;margin-bottom:13px;line-height:1.7;white-space:pre-wrap;display:none}
+.api-acts{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.btn-api-del{display:inline-flex;align-items:center;gap:6px;background:transparent;border:1px solid var(--border2);color:var(--text3);border-radius:var(--r);padding:7px 14px;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer;transition:all .2s;margin-right:auto}
+.btn-api-del:hover{border-color:var(--red);color:var(--red)}
+.btn-api-test{display:inline-flex;align-items:center;gap:7px;background:transparent;border:1.5px solid var(--blue);color:var(--blue);border-radius:var(--r);padding:9px 18px;font-size:13px;font-weight:800;font-family:inherit;cursor:pointer;transition:all .25s}
+.btn-api-test:hover{background:var(--blue-dim)}
+.btn-api-test:disabled{opacity:.4;cursor:not-allowed}
+.btn-api-fetch{display:inline-flex;align-items:center;gap:7px;background:var(--accent);color:#000;border:none;border-radius:var(--r);padding:10px 22px;font-size:13px;font-weight:900;font-family:inherit;cursor:pointer;transition:all .25s;box-shadow:0 4px 18px rgba(245,158,11,.25)}
+.btn-api-fetch:hover:not(:disabled){background:var(--accent2);transform:translateY(-1px);box-shadow:0 6px 24px rgba(245,158,11,.4)}
+.btn-api-fetch:disabled{opacity:.4;cursor:not-allowed}
+.api-security{font-size:10.5px;color:var(--text3);margin-top:12px;display:flex;align-items:center;gap:6px}
+.api-session-notice{display:flex;align-items:flex-start;gap:12px;background:rgba(59,130,246,.07);border:1px solid rgba(59,130,246,.2);border-radius:9px;padding:13px 15px;margin-bottom:15px;color:var(--blue)}
+.api-session-notice strong{font-size:12.5px;font-weight:800;display:block;margin-bottom:3px}
+.odoo-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.25);border-radius:100px;padding:3px 11px;font-size:11px;font-weight:800;color:#818cf8}
+@media(max-width:720px){.api-grid,.date-row{grid-template-columns:1fr}.api-acts{flex-direction:column}.btn-api-fetch{width:100%;justify-content:center}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<!-- HEADER -->
+<header>
+  <div class="hdr">
+    <div class="brand">
+      <div class="brand-logo">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 5v3h-7V8z"/>
+          <circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
+        </svg>
+      </div>
+      <div><h1>لوحة تحكم المناديب</h1><p>روائس اللوجستي — هنقرستيشن + تويو</p></div>
+    </div>
+    <div class="hdr-meta">
+      <div class="period-wrap">
+        <span class="period-lbl">الفترة:</span>
+        <input type="text" class="mini-input" id="periodInput" placeholder="أسبوع 22">
+      </div>
+      <div class="live"><div class="dot"></div>جاهز</div>
+    </div>
+  </div>
+</header>
+
+<!-- TAB BAR -->
+<div class="tab-bar">
+  <button class="tab-btn active" id="tab-hs" onclick="switchTab('hs')">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h18v3H3z"/><path d="M3 12h18"/><path d="M3 18h18"/><circle cx="7" cy="6" r="1" fill="currentColor"/><circle cx="7" cy="12" r="1" fill="currentColor"/><circle cx="7" cy="18" r="1" fill="currentColor"/></svg>
+    هنقرستيشن
+  </button>
+  <button class="tab-btn" id="tab-ty" onclick="switchTab('ty')">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 5v3h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+    تويو
+  </button>
+</div>
+
+<!-- ════════════ HUNGERSTATION PANEL ════════════ -->
+<div class="panel active" id="panel-hs">
+
+  <div class="steps">
+    <div class="step active" id="hs-s1"><div class="step-n">1</div><div class="step-lbl">رفع الملفات</div></div>
+    <div class="step-line"></div>
+    <div class="step" id="hs-s2"><div class="step-n">2</div><div class="step-lbl">الدمج</div></div>
+    <div class="step-line"></div>
+    <div class="step" id="hs-s3"><div class="step-n">3</div><div class="step-lbl">التصدير</div></div>
+  </div>
+
+  <div id="hs-upload">
+    <div class="sec-ttl">رفع ملفات CSV</div>
+    <div class="up-grid">
+      <div class="u-card" id="hc-perf" onclick="hsPick('perf')"><input type="file" id="hi-perf" accept=".csv,.xlsx,.xls" onchange="hsOnPick('perf',this)">
+        <div class="u-head"><div class="u-ico a"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+        <div><div class="u-ttl">الأداء والشفتات</div><div class="u-sub">Rider's Performance</div></div></div>
+        <div class="dz"><div class="dz-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+        <div class="dz-t">اسحب أو انقر</div><div class="dz-h">الشفتات • الساعات • القبول</div></div>
+        <div class="f-badge" id="hb-perf"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg><span class="f-nm" id="hfn-perf"></span></div>
+      </div>
+      <div class="u-card" id="hc-ord" onclick="hsPick('ord')"><input type="file" id="hi-ord" accept=".csv,.xlsx,.xls" onchange="hsOnPick('ord',this)">
+        <div class="u-head"><div class="u-ico b"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg></div>
+        <div><div class="u-ttl">إجمالي الطلبات</div><div class="u-sub">Top Riders</div></div></div>
+        <div class="dz"><div class="dz-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+        <div class="dz-t">اسحب أو انقر</div><div class="dz-h">الطلبات المكتملة</div></div>
+        <div class="f-badge" id="hb-ord"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg><span class="f-nm" id="hfn-ord"></span></div>
+      </div>
+      <div class="u-card" id="hc-wal" onclick="hsPick('wal')"><input type="file" id="hi-wal" accept=".csv,.xlsx,.xls" onchange="hsOnPick('wal',this)">
+        <div class="u-head"><div class="u-ico g"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></div>
+        <div><div class="u-ttl">المحفظة</div><div class="u-sub">Wallet</div></div></div>
+        <div class="dz"><div class="dz-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+        <div class="dz-t">اسحب أو انقر</div><div class="dz-h">أرباح وخصومات</div></div>
+        <div class="f-badge" id="hb-wal"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg><span class="f-nm" id="hfn-wal"></span></div>
+      </div>
+      <div class="u-card" id="hc-nam" onclick="hsPick('nam')"><input type="file" id="hi-nam" accept=".csv,.xlsx,.xls" onchange="hsOnPick('nam',this)">
+        <div class="u-head"><div class="u-ico p"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg></div>
+        <div><div class="u-ttl">أسماء المناديب</div><div class="u-sub">الأسماء الفعلية</div></div></div>
+        <div class="dz"><div class="dz-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+        <div class="dz-t">اسحب أو انقر</div><div class="dz-h">الاسم + الآيدي</div></div>
+        <div class="f-badge" id="hb-nam"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg><span class="f-nm" id="hfn-nam"></span></div>
+      </div>
+      <div class="u-card" id="hc-km" onclick="hsPick('km')"><input type="file" id="hi-km" accept=".csv,.xlsx,.xls" onchange="hsOnPick('km',this)">
+        <div class="u-head"><div class="u-ico o"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+        <div><div class="u-ttl">الكيلومترات</div><div class="u-sub">3PL Riders Distance</div></div></div>
+        <div class="dz"><div class="dz-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+        <div class="dz-t">اسحب أو انقر</div><div class="dz-h">Payable KM • Total KM</div></div>
+        <div class="f-badge" id="hb-km"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg><span class="f-nm" id="hfn-km"></span></div>
+      </div>
+    </div>
+    <div class="action">
+      <button class="btn-merge" id="hs-mergeBtn" onclick="hsMerge()" disabled>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M8 6H21M8 12H21M8 18H21M3 6h.01M3 12h.01M3 18h.01"/></svg>
+        دمج وعرض التقرير
+      </button>
+      <div class="up-hint">تم رفع <b id="hs-cnt">0</b> ملفات</div>
+    </div>
+  </div>
+
+  <div class="results" id="hs-results">
+    <div class="prd-badge"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>التقرير: <span id="hs-prdLbl">—</span></div>
+    <div class="sec-ttl">أفضل 3 مناديب</div>
+    <div class="podium" id="hs-podium"></div>
+    <div class="s4" id="hs-stats"></div>
+    <div class="ch-row">
+      <div class="ch-box"><div class="ch-ttl"><div class="ch-dot" style="background:var(--accent)"></div>الطلبات المكتملة</div><div class="ch-canvas tall" dir="ltr"><canvas id="hs-ch1"></canvas></div></div>
+      <div class="ch-box"><div class="ch-ttl"><div class="ch-dot" style="background:var(--green)"></div>ساعات العمل الفعلية</div><div class="ch-canvas tall" dir="ltr"><canvas id="hs-ch2"></canvas></div></div>
+    </div>
+    <div class="tbl-wrap">
+      <div class="tbl-hdr">
+        <div class="tbl-ttl">بيانات المناديب</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <input type="text" class="mini-input" id="hs-search" placeholder="بحث..." oninput="hsFilter(this.value)" style="width:150px">
+          <div class="tbl-meta" id="hs-meta">—</div>
+        </div>
+      </div>
+      <div class="tbl-scroll"><table><thead id="hs-thead"></thead><tbody id="hs-tbody"></tbody></table></div>
+    </div>
+    <div class="exp-bar">
+      <div class="exp-info"><h3>تصدير Excel</h3><p>شيت ملخص + شيت البيانات</p></div>
+      <div class="exp-acts">
+        <input type="text" class="exp-input" id="hs-expName" value="تقرير_هنقرستيشن">
+        <button class="btn-exp" onclick="hsExport()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>تصدير</button>
+        <button class="btn-print" onclick="window.print()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>طباعة</button>
+      </div>
+    </div>
+    <div class="rst-row"><button class="btn-rst" onclick="hsReset()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>بدء من جديد</button></div>
+  </div>
+</div>
+
+<!-- ════════════ TOYOU PANEL ════════════ -->
+<div class="panel" id="panel-ty">
+
+  <div class="steps">
+    <div class="step active" id="ty-s1"><div class="step-n">1</div><div class="step-lbl">رفع الملفات</div></div>
+    <div class="step-line"></div>
+    <div class="step" id="ty-s2"><div class="step-n">2</div><div class="step-lbl">التحليل</div></div>
+    <div class="step-line"></div>
+    <div class="step" id="ty-s3"><div class="step-n">3</div><div class="step-lbl">التصدير</div></div>
+  </div>
+
+  <div id="ty-upload">
+    <!-- ── MODE TOGGLE ── -->
+    <div class="mode-toggle">
+      <button class="mode-btn active" id="ty-modeFile" onclick="tySetMode('file')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        رفع ملفات
+      </button>
+      <button class="mode-btn" id="ty-modeApi" onclick="tySetMode('api')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><path d="M8 21h8M12 17v4"/></svg>
+        ⚡ API مباشر
+      </button>
+    </div>
+
+    <div id="ty-fileSection">
+    <div class="sec-ttl">رفع ملفات تويو</div>
+    <div class="up-grid tri">
+      <div class="u-card" id="tc-perf" onclick="tyPick('perf')"><input type="file" id="ti-perf" accept=".csv,.xlsx,.xls" onchange="tyOnPick('perf',this)">
+        <div class="u-head"><div class="u-ico a"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+        <div><div class="u-ttl">ملف الأداء</div><div class="u-sub">Excel/CSV — Rep ID, Orders, Hours</div></div></div>
+        <div class="dz"><div class="dz-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+        <div class="dz-t">اسحب أو انقر</div><div class="dz-h">الطلبات • الساعات • القبول</div></div>
+        <div class="f-badge" id="tb-perf"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg><span class="f-nm" id="tfn-perf"></span></div>
+      </div>
+      <div class="u-card" id="tc-nam" onclick="tyPick('nam')"><input type="file" id="ti-nam" accept=".csv,.xlsx,.xls" onchange="tyOnPick('nam',this)">
+        <div class="u-head"><div class="u-ico p"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg></div>
+        <div><div class="u-ttl">أسماء المناديب</div><div class="u-sub">الاسم • الجوال • المدينة • الملاحظات</div></div></div>
+        <div class="dz"><div class="dz-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+        <div class="dz-t">اسحب أو انقر</div><div class="dz-h">ToYou ID + بيانات المندوب</div></div>
+        <div class="f-badge" id="tb-nam"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg><span class="f-nm" id="tfn-nam"></span></div>
+      </div>
+      <div class="u-card" id="tc-wal" onclick="tyPick('wal')"><input type="file" id="ti-wal" accept=".csv,.xlsx,.xls" onchange="tyOnPick('wal',this)">
+        <div class="u-head"><div class="u-ico g"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></div>
+        <div><div class="u-ttl">المحفظة (اختياري)</div><div class="u-sub">الأرباح • الخصومات • المدفوعات</div></div></div>
+        <div class="dz"><div class="dz-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+        <div class="dz-t">اسحب أو انقر</div><div class="dz-h">اختياري</div></div>
+        <div class="f-badge" id="tb-wal"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg><span class="f-nm" id="tfn-wal"></span></div>
+        <div class="opt-lbl">اختياري</div>
+      </div>
+    </div>
+    <div class="tgt-row">
+      <span class="tgt-lbl">التارجت اليومي:</span>
+      <input type="number" class="tgt-input" id="ty-target" value="15" min="1">
+      <span class="tgt-hint">طلب — المندوب الذي يحقق هذا العدد أو أكثر يُعدّ محققاً للتارجت</span>
+    </div>
+    <div class="action">
+      <button class="btn-merge" id="ty-mergeBtn" onclick="tyMerge()" disabled>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 00-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0020 4.77 5.07 5.07 0 0019.91 1S18.73.65 16 2.48a13.38 13.38 0 00-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 005 4.77a5.44 5.44 0 00-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 009 18.13V22"/></svg>
+        تحليل وتصنيف المناديب
+      </button>
+      <div class="up-hint">تم رفع <b id="ty-cnt">0</b> ملفات — الحد الأدنى ملف واحد</div>
+    </div>
+    </div><!-- /ty-fileSection -->
+
+    <!-- ══════════════════════════════════
+         ToYou API SECTION
+    ══════════════════════════════════ -->
+    <div id="ty-apiSection" style="display:none">
+      <div class="api-box">
+        <div class="api-title">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2"><path d="M5 12.55a11 11 0 0114.08 0"/><path d="M1.42 9a16 16 0 0121.16 0"/><path d="M8.53 16.11a6 6 0 016.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
+          Odoo ERP — JSON-RPC Live
+          <span class="odoo-badge" style="margin-right:auto">
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="8"/></svg>
+            Live
+          </span>
+        </div>
+
+        <!-- Odoo URL + Model -->
+        <div class="api-grid">
+          <div class="api-group">
+            <label class="api-lbl">🌐 Odoo URL <span style="font-size:10px;color:var(--text3);font-weight:500">(الدومين فقط)</span></label>
+            <input type="text" class="api-inp" id="ty-apiUrl" value="https://fcp.erp.amhub.org"
+              placeholder="https://fcp.erp.amhub.org"
+              onblur="this.value=cleanOdooUrl(this.value)"
+              oninput="this.style.borderColor=''">
+          </div>
+          <div class="api-group">
+            <label class="api-lbl">📋 Odoo Model</label>
+            <input type="text" class="api-inp" id="ty-apiModel" value="hr.employee" placeholder="hr.employee">
+          </div>
+        </div>
+        <!-- ── Auth Mode ── -->
+        <div style="margin-bottom:14px">
+          <label class="api-lbl" style="margin-bottom:7px;display:block">🔐 طريقة المصادقة</label>
+          <div class="mode-toggle" style="margin-bottom:0">
+            <button class="mode-btn active" id="auth-mode-session" onclick="tySetAuth('session')">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+              Session Cookies
+            </button>
+            <button class="mode-btn" id="auth-mode-apikey" onclick="tySetAuth('apikey')">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+              🔑 API Key
+            </button>
+          </div>
+        </div>
+
+        <!-- ── API Key Input (apikey mode) ── -->
+        <div id="ty-apikeySection" style="display:none;margin-bottom:14px">
+          <div class="api-grid">
+            <div class="api-group">
+              <label class="api-lbl">📧 Login Email</label>
+              <input type="email" class="api-inp" id="ty-apiLogin"
+                placeholder="user@company.com" dir="ltr" autocomplete="off"
+                oninput="localStorage.setItem('ty_api_login', this.value)">
+              <div style="font-size:10px;color:var(--text3);margin-top:4px">إيميل حسابك في Odoo</div>
+            </div>
+            <div class="api-group">
+              <label class="api-lbl">🔑 API Key</label>
+              <div class="api-inp-wrap">
+                <input type="password" class="api-inp" id="ty-apiKey"
+                  placeholder="أدخل API Key..." autocomplete="off"
+                  oninput="localStorage.setItem('ty_api_key_enc', btoa(this.value||''))">
+                <button class="api-eye" onclick="tyToggleKey2()" id="ty-eyeBtn2" title="إظهار/إخفاء">
+                  <svg id="ty-eyeIcon2" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
+              </div>
+              <div style="font-size:10px;color:var(--text3);margin-top:4px">من Odoo → إعدادات → API Keys</div>
+            </div>
+          </div>
+          <div style="font-size:10.5px;color:var(--text3);background:rgba(99,102,241,.07);border:1px solid rgba(99,102,241,.15);border-radius:7px;padding:7px 11px;direction:ltr;text-align:left">
+            Auth: <code>Authorization: Basic base64(email:apikey)</code> — Odoo Standard
+          </div>
+        </div>
+
+        <!-- ── Session Notice (session mode only) ── -->
+        <div class="api-session-notice" id="ty-sessionNotice">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:1px"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+          <div>
+            <strong>يستخدم جلسة المتصفح الحالية (Session Cookies)</strong>
+            <div style="font-size:11px;margin-top:2px;opacity:.8">تأكد من تسجيل دخولك في Odoo ERP بنفس المتصفح — لا يلزم API Key</div>
+          </div>
+        </div>
+
+        <!-- ── CORS Warning (session mode only) ── -->
+        <div id="ty-corsWarning" style="display:flex;align-items:flex-start;gap:10px;background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.25);border-radius:9px;padding:12px 14px;margin-bottom:14px;color:var(--accent)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:1px"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <div style="font-size:11.5px">
+            <strong style="display:block;margin-bottom:3px">⚠️ مع Session: يلزم Chrome بدون CORS</strong>
+            <code id="cors-cmd" style="display:block;background:rgba(0,0,0,.4);padding:7px 10px;border-radius:6px;margin-top:6px;font-size:10.5px;direction:ltr;cursor:pointer;transition:background .2s"
+              onclick="navigator.clipboard?.writeText(this.textContent);this.style.background='rgba(16,185,129,.2)';setTimeout(()=>this.style.background='',1200)"
+              title="انقر للنسخ">chrome.exe --disable-web-security --disable-site-isolation-trials --user-data-dir="C:/ChromeTemp"</code>
+            <div style="margin-top:4px;opacity:.7;font-size:10px">📋 انقر لنسخ الأمر ← شغّله من Run (Win+R)</div>
+          </div>
+        </div>
+
+        <!-- Date Range -->
+        <div class="date-row">
+          <div class="api-group">
+            <label class="api-lbl">📅 من تاريخ</label>
+            <input type="date" class="api-inp" id="ty-dateFrom">
+          </div>
+          <div class="api-group">
+            <label class="api-lbl">📅 إلى تاريخ</label>
+            <input type="date" class="api-inp" id="ty-dateTo">
+          </div>
+        </div>
+
+        <!-- Target -->
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:15px;flex-wrap:wrap">
+          <span class="tgt-lbl">🎯 التارجت اليومي:</span>
+          <input type="number" class="tgt-input" id="ty-apiTarget" value="15" min="1">
+          <span class="tgt-hint">طلب — يُستخدم للتصنيف بعد جلب البيانات</span>
+        </div>
+
+        <!-- Status -->
+        <div class="api-status idle" id="ty-apiStatus">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <span id="ty-apiStatusTxt">جاهز للاتصال — أدخل بيانات API للبدء</span>
+        </div>
+
+        <!-- Log -->
+        <div class="api-log" id="ty-apiLog"></div>
+
+        <!-- Action Buttons -->
+        <div class="api-acts">
+          <button class="btn-api-del" onclick="tyApiDelete()">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
+            إعادة الضبط
+          </button>
+          <button class="btn-api-test" onclick="tyApiTest()" id="ty-testBtn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0114.08 0"/><path d="M1.42 9a16 16 0 0121.16 0"/><path d="M8.53 16.11a6 6 0 016.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
+            Test Connection
+          </button>
+          <button class="btn-api-fetch" onclick="tyApiFetch()" id="ty-fetchBtn">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
+            جلب البيانات وتحليلها
+          </button>
+        </div>
+
+        <p class="api-security">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+          الاتصال عبر Session Cookies فقط — لا يتم تخزين أي بيانات دخول داخل التطبيق
+        </p>
+      </div>
+    </div><!-- /ty-apiSection -->
+
+  </div><!-- /ty-upload -->
+
+  <div class="results" id="ty-results">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:22px">
+      <div class="prd-badge"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>التقرير: <span id="ty-prdLbl">—</span></div>
+      <div style="font-size:11.5px;color:var(--text3)">التارجت: <span id="ty-tgtShow" style="color:var(--accent);font-weight:800">15</span> طلب</div>
+    </div>
+
+    <!-- 8 STATS -->
+    <div class="sec-ttl">الإحصائيات الشاملة</div>
+    <div class="s8" id="ty-stats"></div>
+
+    <!-- PODIUM -->
+    <div class="sec-ttl">أفضل 3 مناديب أداءً</div>
+    <div class="podium" id="ty-podium"></div>
+
+    <!-- CHARTS -->
+    <div class="sec-ttl">الرسوم البيانية</div>
+    <div class="ch-row">
+      <div class="ch-box"><div class="ch-ttl"><div class="ch-dot" style="background:var(--accent)"></div>أعلى 8 مناديب — الطلبات</div><div class="ch-canvas tall" dir="ltr"><canvas id="ty-ch1"></canvas></div></div>
+      <div class="ch-box"><div class="ch-ttl"><div class="ch-dot" style="background:var(--purple)"></div>توزيع حالة اليوزرات</div><div class="ch-canvas" dir="ltr"><canvas id="ty-ch2"></canvas></div></div>
+    </div>
+    <div class="ch-row">
+      <div class="ch-box"><div class="ch-ttl"><div class="ch-dot" style="background:var(--blue)"></div>نسبة تحقيق التارجت</div><div class="ch-canvas" dir="ltr"><canvas id="ty-ch3"></canvas></div></div>
+      <div class="ch-box"><div class="ch-ttl"><div class="ch-dot" style="background:var(--green)"></div>توزيع المناديب على المدن</div><div class="ch-canvas" dir="ltr"><canvas id="ty-ch4"></canvas></div></div>
+    </div>
+
+    <!-- FILTER + SEARCH -->
+    <div class="filter-bar">
+      <span class="filter-lbl">فلتر:</span>
+      <select id="ty-cityFilter" onchange="tyApply()"><option value="all">كل المدن</option></select>
+      <select id="ty-clsFilter" onchange="tyApply()">
+        <option value="all">كل الحالات</option>
+        <option value="active">شغالين</option>
+        <option value="inactive">غير شغالين</option>
+        <option value="disabled">متعطلين</option>
+        <option value="waiting">انتظار</option>
+      </select>
+      <select id="ty-tgtFilter" onchange="tyApply()">
+        <option value="all">كل التارجت</option>
+        <option value="achieved">حققوا التارجت ✓</option>
+        <option value="below">خارج التارجت ✗</option>
+      </select>
+      <div class="search-wrap"><input type="text" id="ty-search" placeholder="بحث بالاسم أو الآيدي أو الجوال..." oninput="tyApply()"></div>
+    </div>
+
+    <!-- SUB TABS -->
+    <div class="sub-tabs" id="ty-subTabs">
+      <button class="sub-btn active" onclick="tySubTab('all',this)">الكل <span class="cnt" id="cnt-all">0</span></button>
+      <button class="sub-btn" onclick="tySubTab('active',this)">شغالين <span class="cnt" id="cnt-active">0</span></button>
+      <button class="sub-btn" onclick="tySubTab('inactive',this)">غير شغالين <span class="cnt" id="cnt-inactive">0</span></button>
+      <button class="sub-btn" onclick="tySubTab('achieved',this)">حققوا التارجت ✓ <span class="cnt" id="cnt-achieved">0</span></button>
+      <button class="sub-btn" onclick="tySubTab('below',this)">خارج التارجت ✗ <span class="cnt" id="cnt-below">0</span></button>
+      <button class="sub-btn" onclick="tySubTab('disabled',this)">متعطلين <span class="cnt" id="cnt-disabled">0</span></button>
+      <button class="sub-btn" onclick="tySubTab('waiting',this)">انتظار <span class="cnt" id="cnt-waiting">0</span></button>
+    </div>
+
+    <!-- TABLE -->
+    <div class="tbl-wrap">
+      <div class="tbl-hdr">
+        <div class="tbl-ttl" id="ty-tblTtl">جميع المناديب</div>
+        <div class="tbl-meta" id="ty-meta">—</div>
+      </div>
+      <div class="tbl-scroll"><table><thead id="ty-thead"></thead><tbody id="ty-tbody"></tbody></table></div>
+    </div>
+
+    <!-- PRINT-ONLY: قائمة المناديب العاملين -->
+    <div class="ty-print-names" id="ty-printNames"></div>
+
+    <!-- EXPORT -->
+    <div class="exp-bar">
+      <div class="exp-info"><h3>تصدير Excel</h3><p>تقرير يومي بنفس تنسيق 22 مايو + 9 شيتات</p></div>
+      <div class="exp-acts">
+        <input type="text" class="exp-input" id="ty-expName" value="تقرير_تويو">
+        <button class="btn-exp" onclick="tyDailyExport()" style="background:var(--green);box-shadow:0 4px 14px rgba(16,185,129,.3)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6M9 12h6M9 15h4"/></svg>📊 تقرير يومي
+        </button>
+        <button class="btn-exp" onclick="tyExport()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>9 شيتات</button>
+        <button class="btn-print" onclick="window.print()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>طباعة</button>
+      </div>
+    </div>
+    <div class="rst-row"><button class="btn-rst" onclick="tyReset()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>بدء من جديد</button></div>
+  </div>
+</div>
+
+<footer>لوحة تحكم المناديب Pro &nbsp;·&nbsp; روائس اللوجستي &nbsp;·&nbsp; <span id="yr"></span></footer>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ══════════════════════════════════
+   GLOBAL STATE
+══════════════════════════════════ */
+document.getElementById('yr').textContent = new Date().getFullYear();
+
+const HS = { data:{perf:[],ord:[],wal:[],nam:[],km:[]}, merged:[], cols:[], sortC:null, sortD:'asc', filtered:[] };
+const TY = { data:{perf:[],nam:[],wal:[]}, merged:[], filtered:[], subFilter:'all', sortC:null, sortD:'asc', chObjs:[], reportDate:'' };
+
+/* ══════════════════════════════════
+   TAB SWITCH
+══════════════════════════════════ */
+function switchTab(t){
+  ['hs','ty'].forEach(x=>{
+    document.getElementById('panel-'+x).classList.toggle('active',x===t);
+    document.getElementById('tab-'+x).classList.toggle('active',x===t);
+  });
+}
+
+/* ══════════════════════════════════
+   FILE PARSING UTILITY
+══════════════════════════════════ */
+function parseFile(file){
+  return new Promise((ok,err)=>{
+    const ext=file.name.split('.').pop().toLowerCase();
+    if(ext==='csv'){
+      Papa.parse(file,{header:true,skipEmptyLines:true,complete:r=>ok(r.data),error:err});
+    } else {
+      const rd=new FileReader();
+      rd.onload=e=>{
+        const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+        const ws=wb.Sheets[wb.SheetNames[0]];
+        // Read as raw arrays to handle title rows (e.g. "ToYou - ToYou" before headers)
+        const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+        if(!raw.length){ok([]);return;}
+        // Find the real header row: first row with ≥3 non-empty string values
+        let hdrIdx=0;
+        for(let i=0;i<Math.min(raw.length,6);i++){
+          const strCols=raw[i].filter(v=>v!==''&&typeof v==='string'&&v.trim().length>0).length;
+          if(strCols>=3){hdrIdx=i;break;}
+        }
+        const headers=raw[hdrIdx].map(h=>String(h??'').trim());
+        const dataRows=raw.slice(hdrIdx+1).filter(r=>r.some(v=>v!==''&&v!==null&&v!==undefined));
+        ok(dataRows.map(row=>{
+          const obj={};
+          headers.forEach((h,i)=>{if(h)obj[h]=row[i]??'';});
+          return obj;
+        }));
+      };
+      rd.onerror=err;
+      rd.readAsArrayBuffer(file);
+    }
+  });
+}
+
+/* ══════════════════════════════════
+   COLUMN DETECTION
+══════════════════════════════════ */
+function getIdCol(row,hints){
+  if(!row) return null;
+  const k=Object.keys(row);
+  for(const h of(hints||[])){const f=k.find(x=>x.trim().toLowerCase()===h.toLowerCase());if(f)return f;}
+  return k.find(x=>/rider.*id|rep.*id|toyou.*id/i.test(x))
+      || k.find(x=>/^id$/i.test(x.trim()))
+      || k[0];
+}
+function getCol(row,hints){
+  if(!row) return null;
+  const k=Object.keys(row);
+  for(const h of hints){const f=k.find(x=>x.trim().toLowerCase()===h.toLowerCase()||x.includes(h));if(f)return f;}
+  return null;
+}
+function mkMap(arr,col){
+  const m={};if(!col||!arr.length)return m;
+  arr.forEach(r=>{const k=String(r[col]||'').trim();if(k)m[k]=r;});
+  return m;
+}
+function num(v){return parseFloat(String(v||0).replace(/[^0-9.]/g,''))||0;}
+
+/* ══════════════════════════════════
+   HUNGERSTATION — FILE LOADING
+══════════════════════════════════ */
+['perf','ord','wal','nam','km'].forEach(t=>{
+  const c=document.getElementById('hc-'+t);
+  c.addEventListener('dragover',e=>{e.preventDefault();c.classList.add('over')});
+  c.addEventListener('dragleave',()=>c.classList.remove('over'));
+  c.addEventListener('drop',e=>{e.preventDefault();c.classList.remove('over');const f=e.dataTransfer.files[0];if(f)hsLoad(t,f);});
+});
+function hsPick(t){document.getElementById('hi-'+t).click()}
+function hsOnPick(t,el){if(el.files[0])hsLoad(t,el.files[0])}
+function hsLoad(t,file){
+  parseFile(file).then(data=>{
+    HS.data[t]=data;
+    document.getElementById('hc-'+t).classList.add('done');
+    document.getElementById('hfn-'+t).textContent=file.name;
+    const n=Object.values(HS.data).filter(d=>d.length>0).length;
+    document.getElementById('hs-cnt').textContent=n;
+    document.getElementById('hs-mergeBtn').disabled=(n===0);
+    toast('✓ '+file.name,'ok');
+  }).catch(()=>toast('خطأ في قراءة الملف','err'));
+}
+
+/* ──── HS MERGE ──── */
+const HS_HIDE=new Set(['City Name','Contract Name','Vehicle Name','Batch Number','TGA Status','Error Codes','Contact Rate','Manual Undispatched','Deduction Deliveries','Not Accepted Deliveries','Stacked Deliveries','Avg. Working Hours/ Day','Working Days']);
+const HS_AR={'Rider Id':'رقم الآيدي','# Shifts':'الشفتات','Planned Working Hours':'ساعات مخططة','Actual Working Hours':'ساعات فعلية','Break Hours':'Break Hrs','Lost Hours':'Lost Hrs','Acceptance Rate':'نسبة القبول','Completed Deliveries':'طلبات مكتملة','Accepted Deliveries':'طلبات مقبولة','Cancelled Deliveries':'طلبات ملغاة','Attendance Rate':'نسبة الحضور','Declined Deliveries':'مرفوضة','Notified Deliveries':'معلنة'};
+const hsar=c=>HS_AR[c]||c;
+
+function hsMerge(){
+  const btn=document.getElementById('hs-mergeBtn');
+  btn.disabled=true;btn.innerHTML='<div class="spinner"></div> جاري الدمج...';
+  setTimeout(()=>{
+    try{
+      const{perf,ord,wal,nam,km}=HS.data;
+      const perfId=getIdCol(perf[0],['Rider Id','Rider ID','rider_id','ID']);
+      const ordId=getIdCol(ord[0],['Rider Id','Rider ID','ID']);
+      const walId=getIdCol(wal[0],['Rider Id','ID']);
+      const namId=getIdCol(nam[0],['Rider Id','ID','rider_id']);
+      const kmId=getIdCol(km[0],['Rider Id','Rider ID','rider_id','ID']);
+      const namCol=getCol(nam[0],['الاسم الفعلي','الاسم','Name','name']);
+      const ordMap=mkMap(ord,ordId),walMap=mkMap(wal,walId),namMap=mkMap(nam,namId);
+      const kmMap=mkMap(km,kmId);
+      const ids=new Set();
+      [perf,ord,wal,nam].forEach((a,i)=>{const c=[perfId,ordId,walId,namId][i];a.forEach(r=>c&&r[c]&&ids.add(String(r[c]).trim()))});
+      const walExtra=wal.length?Object.keys(wal[0]).filter(k=>k!==walId):[];
+      const perfCols=perf.length?Object.keys(perf[0]).filter(k=>k!==perfId&&!HS_HIDE.has(k)):[];
+      HS.merged=[];
+      for(const id of ids){
+        const p=perf.find(r=>String(r[perfId]||'').trim()===id)||{};
+        const o=ordMap[id]||{},w=walMap[id]||{},n=namMap[id]||{},k=kmMap[id]||{};
+        const row={_id:id,الاسم:(namCol?n[namCol]:'')||'—'};
+        perfCols.forEach(c=>{row[c]=p[c]!==undefined?p[c]:(o[c]!==undefined?o[c]:'—')});
+        walExtra.forEach(c=>{if(!(c in row))row[c]=w[c]!==undefined?w[c]:'—'});
+        // ── الكيلومتر من تقرير المسافة ──
+        if(km.length){
+          const pkm=num(k['Payable KM']||k['Payable Km']||k['payable_km']||0);
+          const tkm=num(k['Total KM']||k['Total Km']||k['total_km']||0);
+          row['الكيلومتر']=pkm||tkm||0;
+        }
+        HS.merged.push(row);
+      }
+      HS.merged.sort((a,b)=>(num(b['Completed Deliveries'])||0)-(num(a['Completed Deliveries'])||0));
+      HS.cols=HS.merged.length?Object.keys(HS.merged[0]).filter(k=>k!=='_id'):[];
+      HS.filtered=[...HS.merged];
+      hsRenderAll();
+      btn.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> تم';
+      btn.style.background='var(--green)';
+      hsStep(1,'done');hsStep(2,'done');hsStep(3,'active');
+      toast('تم دمج '+HS.merged.length+' مندوب','ok');
+    }catch(e){btn.disabled=false;btn.innerHTML='دمج وعرض التقرير';btn.style.background='';toast('خطأ: '+e.message,'err');}
+  },250);
+}
+
+function hsStep(n,st){const el=document.getElementById('hs-s'+n);el.classList.remove('active','done');if(st)el.classList.add(st)}
+
+function hsRenderAll(){
+  document.getElementById('hs-upload').style.display='none';
+  document.getElementById('hs-results').style.display='block';
+  document.getElementById('hs-prdLbl').textContent=document.getElementById('periodInput').value||'—';
+  // Stats
+  const d=HS.merged;
+  const tc=d.reduce((s,r)=>s+num(r['Completed Deliveries']),0);
+  const th=d.reduce((s,r)=>s+num(r['Actual Working Hours']),0);
+  const rates=d.map(r=>parseFloat(String(r['Acceptance Rate']||'').replace('%',''))).filter(v=>v>0);
+  const ar=rates.length?(rates.reduce((a,b)=>a+b,0)/rates.length).toFixed(0)+'%':'—';
+  const sc=[{v:d.length,l:'إجمالي المناديب',c:'var(--accent)'},{v:tc,l:'الطلبات المكتملة',c:'var(--blue)'},{v:th.toFixed(1)+' h',l:'ساعات العمل',c:'var(--green)'},{v:ar,l:'متوسط القبول',c:'var(--purple)'}];
+  document.getElementById('hs-stats').innerHTML=sc.map((c,i)=>`<div class="s-card" style="color:${c.c};animation-delay:${i*.07}s"><div class="s-val">${c.v}</div><div class="s-lbl">${c.l}</div></div>`).join('');
+  document.getElementById('hs-meta').textContent=d.length+' مندوب';
+  // Podium
+  const top=d.slice(0,3);
+  document.getElementById('hs-podium').innerHTML=top.map((r,i)=>`<div class="pod ${['g1','g2','g3'][i]}" style="animation-delay:${i*.07}s"><div class="pod-medal">${['🥇','🥈','🥉'][i]}</div><div class="pod-name">${r['الاسم']}</div><div class="pod-id"># ${r._id}</div><div class="pod-stats"><div><div class="pst-v">${num(r['Completed Deliveries'])}</div><div class="pst-l">طلب</div></div><div class="pod-divider"></div><div><div class="pst-v">${num(r['Actual Working Hours']).toFixed(1)}</div><div class="pst-l">ساعة</div></div></div></div>`).join('');
+  // Charts
+  hsRenderCharts(d);
+  // Table
+  hsRenderTable(HS.filtered);
+}
+
+let hsC1=null,hsC2=null;
+function hsRenderCharts(d){
+  if(hsC1){hsC1.destroy();hsC1=null}if(hsC2){hsC2.destroy();hsC2=null}
+  const lbl=d.map(r=>r['الاسم']!=='—'?r['الاسم'].split(' ')[0]:'#'+r._id);
+  const comp=d.map(r=>num(r['Completed Deliveries']));
+  const hrs=d.map(r=>num(r['Actual Working Hours']));
+  const bOpts=(unit,bg)=>({type:'bar',options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'#1a2234',borderColor:'rgba(255,255,255,.1)',borderWidth:1,titleFont:{family:'Cairo',size:11},bodyFont:{family:'Cairo',size:12},callbacks:{label:ctx=>`  ${ctx.parsed.x} ${unit}  `}}},scales:{x:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#94a3b8',font:{family:'Cairo',size:10}},border:{color:'rgba(255,255,255,.05)'}},y:{grid:{display:false},ticks:{color:'#f1f5f9',font:{family:'Cairo',size:11}},border:{color:'rgba(255,255,255,.05)'}}}}});
+  hsC1=new Chart(document.getElementById('hs-ch1'),{...bOpts('طلب'),data:{labels:lbl,datasets:[{data:comp,backgroundColor:'rgba(245,158,11,.75)',hoverBackgroundColor:'#f59e0b',borderRadius:4,borderSkipped:false}]}});
+  hsC2=new Chart(document.getElementById('hs-ch2'),{...bOpts('ساعة'),data:{labels:lbl,datasets:[{data:hrs,backgroundColor:'rgba(16,185,129,.75)',hoverBackgroundColor:'#10b981',borderRadius:4,borderSkipped:false}]}});
+}
+
+const HS_DISP=['الاسم','_id','Completed Deliveries','Accepted Deliveries','Cancelled Deliveries','Acceptance Rate','# Shifts','Actual Working Hours','الكيلومتر','Planned Working Hours','Lost Hours','Break Hours','Attendance Rate'];
+function hsGetCols(){const all=['الاسم','_id',...HS.cols.filter(c=>c!=='الاسم')];return[...new Set([...HS_DISP.filter(c=>all.includes(c)),...all.filter(c=>!HS_DISP.includes(c))])]}
+
+function hsRenderTable(data){
+  const cols=hsGetCols();
+  document.getElementById('hs-thead').innerHTML='<tr><th style="width:32px">#</th>'+cols.map(c=>{const lbl=c==='_id'?'الآيدي':hsar(c);const cls=HS.sortC===c?(HS.sortD==='asc'?'sa':'sd'):'';return`<th class="${cls}" onclick="hsSortBy('${c}')">${lbl}</th>`}).join('')+'</tr>';
+  document.getElementById('hs-tbody').innerHTML=data.map((row,idx)=>{
+    const oi=HS.merged.indexOf(row);
+    const cls=oi===0?'tr1':oi===1?'tr2':oi===2?'tr3':'';
+    const medal=['🥇','🥈','🥉'][oi]||`<span style="color:var(--text3);font-size:11px">${oi+1}</span>`;
+    return`<tr class="${cls}"><td style="text-align:center">${medal}</td>`+cols.map(c=>{
+      const v=c==='_id'?row._id:(row[c]??'—');
+      if((c==='Acceptance Rate'||c==='Attendance Rate')&&v!=='—'){const n=parseFloat(String(v).replace('%',''));return`<td><span class="bdg ${n>=95?'bdg-hi':n>=80?'bdg-mid':'bdg-lo'}">${v}</span></td>`}
+      if(c==='الاسم')return`<td class="td-name">${v}</td>`;
+      if(c==='_id')return`<td class="td-id">${v}</td>`;
+      return`<td>${v}</td>`;
+    }).join('')+'</tr>';
+  }).join('');
+}
+
+function hsFilter(q){
+  const lq=q.toLowerCase();
+  HS.filtered=lq?HS.merged.filter(r=>(r['الاسم']||'').toLowerCase().includes(lq)||(r._id||'').includes(lq)):[...HS.merged];
+  document.getElementById('hs-meta').textContent=HS.filtered.length+' / '+HS.merged.length;
+  hsRenderTable(HS.filtered);
+}
+function hsSortBy(c){
+  HS.sortD=HS.sortC===c?(HS.sortD==='asc'?'desc':'asc'):'asc';HS.sortC=c;
+  HS.filtered.sort((a,b)=>{
+    const av=c==='_id'?a._id:(a[c]??''),bv=c==='_id'?b._id:(b[c]??'');
+    const an=parseFloat(String(av).replace('%','')),bn=parseFloat(String(bv).replace('%',''));
+    if(!isNaN(an)&&!isNaN(bn))return HS.sortD==='asc'?an-bn:bn-an;
+    return HS.sortD==='asc'?String(av).localeCompare(String(bv),'ar'):String(bv).localeCompare(String(av),'ar');
+  });
+  hsRenderTable(HS.filtered);
+}
+
+function hsExport(){
+  const name=document.getElementById('hs-expName').value||'تقرير_هنقرستيشن';
+  const period=document.getElementById('periodInput').value||'—';
+  const wb=XLSX.utils.book_new();
+  const cols=hsGetCols();
+  const hdrs=cols.map(c=>c==='_id'?'رقم الآيدي':hsar(c));
+  const d=HS.merged;
+  const tc=d.reduce((s,r)=>s+num(r['Completed Deliveries']),0);
+  const th=d.reduce((s,r)=>s+num(r['Actual Working Hours']),0);
+  const tkm=d.reduce((s,r)=>s+num(r['الكيلومتر']||0),0);
+  const kmRow=tkm>0?[['إجمالي الكيلومترات:',+tkm.toFixed(2)]]:[];
+  const ws1=XLSX.utils.aoa_to_sheet([['تقرير هنقرستيشن — روائس اللوجستي'],['الفترة:',period],['التاريخ:',new Date().toLocaleDateString('ar-SA')],[''],['المناديب:',d.length],['الطلبات المكتملة:',tc],['ساعات العمل:',th.toFixed(1)],...kmRow]);
+  ws1['!cols']=[{wch:25},{wch:20}];
+  XLSX.utils.book_append_sheet(wb,ws1,'ملخص');
+  const rows=d.map(r=>cols.map(c=>c==='_id'?r._id:(r[c]??'—')));
+  const ws2=XLSX.utils.aoa_to_sheet([hdrs,...rows]);
+  ws2['!cols']=cols.map((_,i)=>({wch:Math.min(Math.max(hdrs[i].length,...rows.map(r=>String(r[i]||'').length))+4,30)}));
+  ws2['!autofilter']={ref:`A1:${XLSX.utils.encode_col(cols.length-1)}1`};
+  XLSX.utils.book_append_sheet(wb,ws2,'بيانات المناديب');
+  XLSX.writeFile(wb,name+'.xlsx');
+  hsStep(3,'done');toast('تم التصدير: '+name+'.xlsx','ok');
+}
+
+function hsReset(){
+  HS.data={perf:[],ord:[],wal:[],nam:[],km:[]};HS.merged=[];HS.cols=[];HS.filtered=[];
+  if(hsC1){hsC1.destroy();hsC1=null}if(hsC2){hsC2.destroy();hsC2=null}
+  ['perf','ord','wal','nam','km'].forEach(t=>{document.getElementById('hc-'+t).classList.remove('done');document.getElementById('hi-'+t).value=''});
+  const btn=document.getElementById('hs-mergeBtn');btn.disabled=true;btn.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M8 6H21M8 12H21M8 18H21M3 6h.01M3 12h.01M3 18h.01"/></svg> دمج وعرض التقرير';btn.style.background='';
+  document.getElementById('hs-cnt').textContent='0';
+  document.getElementById('hs-results').style.display='none';document.getElementById('hs-upload').style.display='block';
+  [1,2,3].forEach(n=>{const el=document.getElementById('hs-s'+n);el.classList.remove('active','done');if(n===1)el.classList.add('active')});
+}
+
+/* ══════════════════════════════════
+   TOYOU — FILE LOADING
+══════════════════════════════════ */
+['perf','nam','wal'].forEach(t=>{
+  const c=document.getElementById('tc-'+t);
+  c.addEventListener('dragover',e=>{e.preventDefault();c.classList.add('over')});
+  c.addEventListener('dragleave',()=>c.classList.remove('over'));
+  c.addEventListener('drop',e=>{e.preventDefault();c.classList.remove('over');const f=e.dataTransfer.files[0];if(f)tyLoad(t,f);});
+});
+function tyPick(t){document.getElementById('ti-'+t).click()}
+function tyOnPick(t,el){if(el.files[0])tyLoad(t,el.files[0])}
+function tyLoad(t,file){
+  parseFile(file).then(data=>{
+    TY.data[t]=data;
+    document.getElementById('tc-'+t).classList.add('done');
+    document.getElementById('tfn-'+t).textContent=file.name;
+    const n=Object.values(TY.data).filter(d=>d.length>0).length;
+    document.getElementById('ty-cnt').textContent=n;
+    document.getElementById('ty-mergeBtn').disabled=(n===0);
+    toast('✓ '+file.name,'ok');
+  }).catch(()=>toast('خطأ في قراءة الملف','err'));
+}
+
+/* ──── TY MERGE + CLASSIFY ──── */
+function tyStep(n,st){const el=document.getElementById('ty-s'+n);el.classList.remove('active','done');if(st)el.classList.add(st)}
+
+function tyMerge(){
+  const btn=document.getElementById('ty-mergeBtn');
+  btn.disabled=true;btn.innerHTML='<div class="spinner"></div> جاري التحليل...';
+  setTimeout(()=>{
+    try{
+      _tyMerge();
+      btn.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> تم التحليل';
+      btn.style.background='var(--green)';
+      tyStep(1,'done');tyStep(2,'done');tyStep(3,'active');
+      toast('تم تحليل '+TY.merged.length+' مندوب','ok');
+    }catch(e){btn.disabled=false;btn.innerHTML='تحليل وتصنيف المناديب';btn.style.background='';toast('خطأ: '+e.message,'err');}
+  },280);
+}
+
+// ── Convert "HH:MM" or "H:MM" to decimal hours ──
+function parseHours(v){
+  if(!v&&v!==0) return 0;
+  const s=String(v).trim();
+  if(s.includes(':')){
+    const p=s.split(':');
+    return (parseInt(p[0])||0)+(parseInt(p[1])||0)/60;
+  }
+  return parseFloat(s)||0;
+}
+// ── Convert Excel serial date to readable string ──
+function excelDateStr(serial){
+  if(!serial||typeof serial!=='number') return '';
+  try{
+    const d=new Date(Date.UTC(1899,11,30)+serial*86400000);
+    return d.toLocaleDateString('ar-EG',{day:'2-digit',month:'2-digit',year:'numeric'});
+  }catch(e){return '';}
+}
+// ── Normalize city name: "Al-Madīnah [Medina]" → "Medina" ──
+function cleanCity(raw){
+  if(!raw||raw==='—')return raw||'—';
+  const s=String(raw).trim();
+  const m=s.match(/\[([^\]]+)\]/);
+  if(m)return m[1].trim();
+  return s;
+}
+
+function _tyMerge(){
+  const{perf,nam,wal}=TY.data;
+  if(!perf.length&&!nam.length) throw new Error('لم يتم رفع ملف الأداء أو الأسماء');
+  const target=parseInt(document.getElementById('ty-target').value)||15;
+  document.getElementById('ty-tgtShow').textContent=target;
+
+  // ── Column detection ──
+  const perfId =getIdCol(perf[0],['Rep ID','rep_id','RepID','ID','id','Rider Id','rider_id','رقم الآيدي']);
+  const namId  =getIdCol(nam[0], ['ToYou ID','toyou_id','Rep ID','ID','id','الآيدي','رقم الآيدي']);
+  const walId  =getIdCol(wal[0], ['Rep ID','ID','id','rider_id']);
+
+  // Arabic names file
+  const nameCol    =getCol(nam[0],['الاسماء الفعليه','الاسم الفعلي','الاسم','Name','name','Rep Name','FullName']);
+  const nameEnCol  =getCol(nam[0],['Name','name','Rep Name','English Name','الاسم الانجليزي']);
+  const phoneCol   =getCol(nam[0],['الجوال','Phone','phone','mobile','رقم الجوال']);
+  const cityCol    =getCol(nam[0],['المدينة','City','city'])||getCol(perf[0],['City','المدينة','city']);
+  const notesCol   =getCol(nam[0],['ملاحظات','Notes','notes','note','ملاحظة']);
+  const statusCol  =getCol(nam[0],['الحاله','حالة اليوزر','Status','status','User Status','الحالة','Rep Condition']);
+  const carTypeCol =getCol(nam[0],['حالة السيارات','Car Type','Vehicle Type','vehicle_type','السيارة']);
+  const startDateCol=getCol(nam[0],['تاريخ البداية','Start Date','start_date','تاريخ البدء']);
+
+  const namMap=mkMap(nam,namId), walMap=mkMap(wal,walId);
+
+  // ── Group performance data by Rep ID (sum orders, hours, etc.) ──
+  const perfGroups={};
+  TY.reportDate='';
+  for(const p of perf){
+    const id=String(p[perfId]||'').trim();
+    if(!id) continue;
+    // Extract report date from Day column (Excel serial)
+    if(!TY.reportDate){
+      const dayVal=p['Day'];
+      if(typeof dayVal==='number'&&dayVal>10000)
+        TY.reportDate=excelDateStr(dayVal);
+      else if(dayVal&&String(dayVal).trim())
+        TY.reportDate=String(dayVal).trim();
+    }
+    if(!perfGroups[id]) perfGroups[id]={orders:0,offered:0,accepted:0,hoursMin:0,autoAcc:0};
+    const g=perfGroups[id];
+    // Completed orders — support both "# Completed Orders" (ToYou) and "Completed Orders"
+    g.orders  +=num(p['# Completed Orders']||p['Completed Orders']||p['الطلبات']||p['Orders']||p['completed_orders']||0);
+    g.offered +=num(p['# Orders Offered']  ||p['Orders Offered']  ||0);
+    g.accepted+=num(p['# Orders Accepted'] ||p['Orders Accepted'] ||0);
+    // Hours: "HH:MM" string OR decimal
+    const hRaw=p['Hours Online (Total)']||p['Online Hours']||p['الساعات']||p['Hours']||p['online_hours']||'0';
+    g.hoursMin+=parseHours(hRaw)*60;
+    g.autoAcc +=num(p['Hours Auto-Accept']||p['Auto Accept']||p['auto_accept']||0);
+  }
+
+  // ── Build unified ID list (from both perf and names) ──
+  const ids=new Set();
+  perf.forEach(r=>{const v=String(r[perfId]||'').trim();if(v)ids.add(v);});
+  nam.forEach(r=>{const v=String(r[namId]||'').trim();if(v)ids.add(v);});
+
+  TY.merged=[];
+  for(const id of ids){
+    const g=perfGroups[id]||{orders:0,offered:0,accepted:0,hoursMin:0,autoAcc:0};
+    const n=namMap[id]||{};
+    const w=walMap[id]||{};
+
+    const orders =g.orders;
+    const hours  =+(g.hoursMin/60).toFixed(2);
+    // Acceptance rate: calculated from totals (more accurate than avg)
+    const acpt   =g.offered>0?Math.round(g.accepted/g.offered*100):0;
+
+    const name   =n[nameCol]||'—';
+    const phone  =String(n[phoneCol]||'—').replace(/‪|‬|‏|‎/g,'').trim();
+    const city   =cleanCity(String(n[cityCol]||'—').trim());
+    const notes  =String(n[notesCol]||'').trim();
+    const status =String(n[statusCol]||'').trim();
+
+    // ── Classification ──
+    // Check name for 'انتظار' (user waiting for ID assignment)
+    const nameIsWaiting=/^انتظار|في انتظار/i.test(name.trim());
+    let cls='active';
+    // waiting takes priority over disabled (e.g. في انتظار التجديد)
+    if(nameIsWaiting||/في انتظار|pending|renewal/i.test(notes+' '+status))
+      cls='waiting';
+    // معطل / disabled
+    else if(/متعطل|اليوزر متعطل|disabled|suspended|معطل|blocked/i.test(notes+' '+status))
+      cls='disabled';
+    // انتظار in notes
+    else if(/انتظار|wait/i.test(notes+' '+status))
+      cls='waiting';
+    // No orders & no hours → inactive
+    else if(orders===0&&hours===0)
+      cls='inactive';
+
+    const nameEn   =String(n[nameEnCol]||'').trim();
+    const carType  =String(n[carTypeCol]||'').trim();
+    const startDate=String(n[startDateCol]||'').trim();
+
+    TY.merged.push({
+      _id:id, _name:name, _nameEn:nameEn, _phone:phone, _city:city,
+      _cls:cls, _target:orders>=target?'achieved':'below',
+      _orders:orders, _hours:hours, _acpt:acpt,
+      _notes:notes, _status:status,
+      _carType:carType, _startDate:startDate,
+      _wal_balance:num(w['الرصيد']||w['Balance']||0),
+      _wal_ded:num(w['الخصومات']||w['Deductions']||0),
+    });
+  }
+  TY.merged.sort((a,b)=>b._orders-a._orders);
+
+  // ── City filter ──
+  const cities=[...new Set(TY.merged.map(r=>r._city).filter(c=>c&&c!=='—'))].sort();
+  const cf=document.getElementById('ty-cityFilter');
+  cf.innerHTML='<option value="all">كل المدن</option>'+cities.map(c=>`<option value="${c}">${c}</option>`).join('');
+  TY.filtered=[...TY.merged];
+  tyRenderAll();
+}
+
+function tyRenderAll(){
+  document.getElementById('ty-upload').style.display='none';
+  document.getElementById('ty-results').style.display='block';
+  // Show report date from Excel Day column, or fall back to manual input
+  const manualPrd=document.getElementById('periodInput').value||'';
+  const autoDate=TY.reportDate||'';
+  document.getElementById('ty-prdLbl').textContent=autoDate||(manualPrd||'—');
+  tyRenderStats();
+  tyRenderPodium();
+  tyRenderCharts();
+  tyUpdateCounts();
+  tyRenderTable();
+  tyUpdatePrintNames();
+}
+
+/* ── قائمة الطباعة: المناديب العاملين مرتبين من الأعلى ── */
+function tyUpdatePrintNames(){
+  const target=parseInt(document.getElementById('ty-target').value)||15;
+  const date=TY.reportDate||document.getElementById('periodInput').value||new Date().toLocaleDateString('ar-SA');
+  // الشغالين بس (طلبات > 0) مرتبين تنازلياً
+  const working=TY.merged.filter(r=>r._orders>0).sort((a,b)=>b._orders-a._orders);
+  const el=document.getElementById('ty-printNames');
+  if(!working.length){el.innerHTML='';return;}
+  const rows=working.map((r,i)=>{
+    const rate=Math.round(r._orders/target*100);
+    const rateStr=rate+'%';
+    return `<tr>
+      <td class="pn-rank">${i+1}</td>
+      <td>${r._name}</td>
+      <td class="pn-orders" style="text-align:center">${r._orders}</td>
+      <td style="text-align:center">${r._hours.toFixed(1)} h</td>
+      <td style="text-align:center">${rateStr}</td>
+    </tr>`;
+  }).join('');
+  el.innerHTML=`
+    <h3>المناديب العاملين — ${date} &nbsp;|&nbsp; إجمالي: ${working.reduce((s,r)=>s+r._orders,0)} طلب &nbsp;|&nbsp; عدد: ${working.length} مندوب</h3>
+    <table>
+      <thead><tr>
+        <th class="pn-rank">#</th>
+        <th>اسم المندوب</th>
+        <th style="text-align:center">الطلبات</th>
+        <th style="text-align:center">الساعات</th>
+        <th style="text-align:center">النسبة</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+function tyRenderStats(){
+  const d=TY.merged;
+  const active=d.filter(r=>r._cls==='active');
+  const inactive=d.filter(r=>r._cls==='inactive');
+  const disabled=d.filter(r=>r._cls==='disabled');
+  const waiting=d.filter(r=>r._cls==='waiting');
+  const tc=d.reduce((s,r)=>s+r._orders,0);
+  const th=d.reduce((s,r)=>s+r._hours,0);
+  const rates=active.filter(r=>r._acpt>0).map(r=>r._acpt);
+  const ar=rates.length?(rates.reduce((a,b)=>a+b,0)/rates.length).toFixed(0)+'%':'—';
+  const cards=[
+    {v:d.length,      l:'إجمالي المناديب',     c:'var(--accent)'},
+    {v:tc,            l:'الطلبات المكتملة',     c:'var(--blue)'},
+    {v:th.toFixed(1), l:'إجمالي الساعات',       c:'var(--green)'},
+    {v:ar,            l:'متوسط نسبة القبول',    c:'var(--purple)'},
+    {v:active.length, l:'يوزرات شغالة',         c:'var(--green)'},
+    {v:inactive.length,l:'يوزرات غير شغالة',   c:'var(--silver)'},
+    {v:disabled.length,l:'متعطلين',             c:'var(--red)'},
+    {v:waiting.length, l:'انتظار',              c:'var(--accent)'},
+  ];
+  document.getElementById('ty-stats').innerHTML=cards.map((c,i)=>`<div class="s-card" style="color:${c.c};animation-delay:${i*.06}s"><div class="s-val">${c.v}</div><div class="s-lbl">${c.l}</div></div>`).join('');
+}
+
+function tyRenderPodium(){
+  const top=TY.merged.filter(r=>r._cls==='active').slice(0,3);
+  document.getElementById('ty-podium').innerHTML=top.map((r,i)=>`<div class="pod ${['g1','g2','g3'][i]}" style="animation-delay:${i*.07}s"><div class="pod-medal">${['🥇','🥈','🥉'][i]}</div><div class="pod-name">${r._name}</div><div class="pod-id"># ${r._id}</div><div class="pod-stats"><div><div class="pst-v">${r._orders}</div><div class="pst-l">طلب</div></div><div class="pod-divider"></div><div><div class="pst-v">${r._hours.toFixed(1)}</div><div class="pst-l">ساعة</div></div></div></div>`).join('');
+}
+
+let tyChObjs=[];
+function tyRenderCharts(){
+  tyChObjs.forEach(c=>{try{c.destroy()}catch(e){}});tyChObjs=[];
+  const top8=TY.merged.slice(0,8);
+  const lbl8=top8.map(r=>r._name!=='—'?r._name.split(' ')[0]:'#'+r._id);
+  // Chart 1 — top orders bar
+  tyChObjs.push(new Chart(document.getElementById('ty-ch1'),{
+    type:'bar',
+    data:{labels:lbl8,datasets:[{data:top8.map(r=>r._orders),backgroundColor:'rgba(245,158,11,.78)',hoverBackgroundColor:'#f59e0b',borderRadius:4,borderSkipped:false}]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'#1a2234',titleFont:{family:'Cairo',size:11},bodyFont:{family:'Cairo',size:12},callbacks:{label:c=>`  ${c.parsed.x} طلب  `}}},scales:{x:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#94a3b8',font:{family:'Cairo',size:10}},border:{color:'rgba(255,255,255,.05)'}},y:{grid:{display:false},ticks:{color:'#f1f5f9',font:{family:'Cairo',size:11}},border:{color:'rgba(255,255,255,.05)'}}}}
+  }));
+  // Chart 2 — status donut
+  const d=TY.merged;
+  const sc=[d.filter(r=>r._cls==='active').length,d.filter(r=>r._cls==='inactive').length,d.filter(r=>r._cls==='disabled').length,d.filter(r=>r._cls==='waiting').length];
+  tyChObjs.push(new Chart(document.getElementById('ty-ch2'),{
+    type:'doughnut',
+    data:{labels:['شغالين','غير شغالين','متعطلين','انتظار'],datasets:[{data:sc,backgroundColor:['rgba(16,185,129,.8)','rgba(100,116,139,.6)','rgba(239,68,68,.8)','rgba(245,158,11,.8)'],borderColor:'rgba(255,255,255,.06)',borderWidth:2,hoverOffset:8}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{position:'bottom',labels:{color:'#94a3b8',font:{family:'Cairo',size:11},padding:12}},tooltip:{backgroundColor:'#1a2234',titleFont:{family:'Cairo',size:11},bodyFont:{family:'Cairo',size:12}}}}
+  }));
+  // Chart 3 — target donut
+  const ach=d.filter(r=>r._target==='achieved'&&r._cls!=='disabled'&&r._cls!=='waiting').length;
+  const bel=d.filter(r=>r._target==='below'&&r._cls!=='disabled'&&r._cls!=='waiting').length;
+  tyChObjs.push(new Chart(document.getElementById('ty-ch3'),{
+    type:'doughnut',
+    data:{labels:['حققوا التارجت ✓','خارج التارجت ✗'],datasets:[{data:[ach,bel],backgroundColor:['rgba(59,130,246,.8)','rgba(249,115,22,.75)'],borderColor:'rgba(255,255,255,.06)',borderWidth:2,hoverOffset:8}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{position:'bottom',labels:{color:'#94a3b8',font:{family:'Cairo',size:11},padding:12}},tooltip:{backgroundColor:'#1a2234',titleFont:{family:'Cairo',size:11},bodyFont:{family:'Cairo',size:12}}}}
+  }));
+  // Chart 4 — city bar
+  const cityMap={};d.forEach(r=>{if(r._city&&r._city!=='—')cityMap[r._city]=(cityMap[r._city]||0)+1});
+  const cities=Object.entries(cityMap).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  tyChObjs.push(new Chart(document.getElementById('ty-ch4'),{
+    type:'bar',
+    data:{labels:cities.map(c=>c[0]),datasets:[{data:cities.map(c=>c[1]),backgroundColor:'rgba(16,185,129,.75)',hoverBackgroundColor:'#10b981',borderRadius:4}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'#1a2234',titleFont:{family:'Cairo',size:11},bodyFont:{family:'Cairo',size:12},callbacks:{label:c=>`  ${c.parsed.y} مندوب  `}}},scales:{x:{grid:{display:false},ticks:{color:'#f1f5f9',font:{family:'Cairo',size:11}},border:{color:'rgba(255,255,255,.05)'}},y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#94a3b8',font:{family:'Cairo',size:10}},border:{color:'rgba(255,255,255,.05)'}}}}
+  }));
+}
+
+function tyUpdateCounts(){
+  const d=TY.merged;
+  const cnt={
+    all:d.length,
+    active:d.filter(r=>r._cls==='active').length,
+    inactive:d.filter(r=>r._cls==='inactive').length,
+    disabled:d.filter(r=>r._cls==='disabled').length,
+    waiting:d.filter(r=>r._cls==='waiting').length,
+    achieved:d.filter(r=>r._target==='achieved').length,
+    below:d.filter(r=>r._target==='below').length,
+  };
+  Object.keys(cnt).forEach(k=>{const el=document.getElementById('cnt-'+k);if(el)el.textContent=cnt[k]});
+}
+
+TY.subFilter='all';
+function tySubTab(f,btn){
+  TY.subFilter=f;
+  document.querySelectorAll('#ty-subTabs .sub-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  const lbls={all:'جميع المناديب',active:'اليوزرات الشغالة',inactive:'اليوزرات غير الشغالة',achieved:'حققوا التارجت',below:'خارج التارجت',disabled:'المتعطلين',waiting:'انتظار التفعيل'};
+  document.getElementById('ty-tblTtl').textContent=lbls[f]||'المناديب';
+  tyApply();
+}
+
+function tyApply(){
+  const cityF=document.getElementById('ty-cityFilter').value;
+  const clsF=document.getElementById('ty-clsFilter').value;
+  const tgtF=document.getElementById('ty-tgtFilter').value;
+  const q=document.getElementById('ty-search').value.toLowerCase().trim();
+  TY.filtered=TY.merged.filter(r=>{
+    const mSub=TY.subFilter==='all'||r._cls===TY.subFilter||(TY.subFilter==='achieved'&&r._target==='achieved')||(TY.subFilter==='below'&&r._target==='below');
+    const mCity=cityF==='all'||r._city===cityF;
+    const mCls=clsF==='all'||r._cls===clsF;
+    const mTgt=tgtF==='all'||(tgtF==='achieved'&&r._target==='achieved')||(tgtF==='below'&&r._target==='below');
+    const mSrch=!q||r._name.toLowerCase().includes(q)||r._id.includes(q)||(r._phone||'').includes(q);
+    return mSub&&mCity&&mCls&&mTgt&&mSrch;
+  });
+  document.getElementById('ty-meta').textContent=TY.filtered.length+' / '+TY.merged.length+' مندوب';
+  tyRenderTable();
+}
+
+function tyRenderTable(){
+  const data=TY.filtered;
+  const cols=['_rank','_name','_id','_city','_orders','_hours','_acpt','_cls','_target','_phone','_notes'];
+  const hdrs=['#','الاسم','الآيدي','المدينة','الطلبات','الساعات','القبول%','الحالة','التارجت','الجوال','ملاحظات'];
+  document.getElementById('ty-thead').innerHTML='<tr>'+hdrs.map((h,i)=>{const c=cols[i];const cls=TY.sortC===c?(TY.sortD==='asc'?'sa':'sd'):'';return`<th class="${cls}" onclick="tySortBy('${c}')">${h}</th>`}).join('')+'</tr>';
+  const clsBdg={'active':'bdg-active شغال','inactive':'bdg-inactive غير شغال','disabled':'bdg-disabled متعطل','waiting':'bdg-waiting انتظار'};
+  document.getElementById('ty-tbody').innerHTML=data.map((r,i)=>{
+    const oi=TY.merged.indexOf(r);const trcls=oi===0?'tr1':oi===1?'tr2':oi===2?'tr3':'';
+    return`<tr class="${trcls}">
+      <td style="text-align:center">${['🥇','🥈','🥉'][oi]||`<span style="color:var(--text3);font-size:11px">${oi+1}</span>`}</td>
+      <td class="td-name">${r._name}</td>
+      <td class="td-id">${r._id}</td>
+      <td>${r._city}</td>
+      <td><b style="color:var(--accent)">${r._orders}</b></td>
+      <td>${r._hours.toFixed(1)}</td>
+      <td><span class="bdg ${r._acpt>=95?'bdg-hi':r._acpt>=80?'bdg-mid':'bdg-lo'}">${r._acpt.toFixed(0)}%</span></td>
+      <td><span class="bdg ${(clsBdg[r._cls]||'bdg-inactive').split(' ')[0]}">${(clsBdg[r._cls]||'bdg-inactive').split(' ').slice(1).join(' ')}</span></td>
+      <td><span class="bdg ${r._target==='achieved'?'bdg-achieved':'bdg-below'}">${r._target==='achieved'?'✓ حقق':'✗ لم يحقق'}</span></td>
+      <td style="direction:ltr;font-size:11px">${r._phone}</td>
+      <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;font-size:11px;color:var(--text2)">${r._notes||'—'}</td>
+    </tr>`;
+  }).join('');
+  if(!data.length) document.getElementById('ty-tbody').innerHTML=`<tr><td colspan="11" style="text-align:center;padding:28px;color:var(--text3)">لا توجد نتائج</td></tr>`;
+}
+
+function tySortBy(c){
+  TY.sortD=TY.sortC===c?(TY.sortD==='asc'?'desc':'asc'):'asc';TY.sortC=c;
+  const numCols=['_orders','_hours','_acpt'];
+  TY.filtered.sort((a,b)=>{
+    if(numCols.includes(c))return TY.sortD==='asc'?a[c]-b[c]:b[c]-a[c];
+    return TY.sortD==='asc'?String(a[c]||'').localeCompare(String(b[c]||''),'ar'):String(b[c]||'').localeCompare(String(a[c]||''),'ar');
+  });
+  tyRenderTable();
+}
+
+/* ──── TY EXPORT (9 SHEETS) ──── */
+function tyExport(){
+  const name=document.getElementById('ty-expName').value||'تقرير_تويو';
+  const period=document.getElementById('periodInput').value||'—';
+  const target=parseInt(document.getElementById('ty-target').value)||15;
+  const d=TY.merged;
+  const wb=XLSX.utils.book_new();
+  const cols=['الاسم','الآيدي','المدينة','الطلبات','الساعات','القبول%','الحالة','التارجت','الجوال','ملاحظات'];
+
+  function rows(arr){return arr.map(r=>[r._name,r._id,r._city,r._orders,r._hours.toFixed(1),r._acpt.toFixed(0)+'%',{active:'شغال',inactive:'غير شغال',disabled:'متعطل',waiting:'انتظار'}[r._cls],r._target==='achieved'?'حقق':'لم يحقق',r._phone,r._notes])}
+  function addSh(wb,title,arr){
+    const ws=XLSX.utils.aoa_to_sheet([cols,...rows(arr)]);
+    ws['!cols']=cols.map((_,i)=>({wch:Math.min(Math.max(cols[i].length,...rows(arr).map(r=>String(r[i]||'').length))+4,28)}));
+    ws['!autofilter']={ref:`A1:${XLSX.utils.encode_col(cols.length-1)}1`};
+    XLSX.utils.book_append_sheet(wb,ws,title);
+  }
+
+  const active  =d.filter(r=>r._cls==='active');
+  const inactive=d.filter(r=>r._cls==='inactive');
+  const disabled=d.filter(r=>r._cls==='disabled');
+  const waiting =d.filter(r=>r._cls==='waiting');
+  const achieved=d.filter(r=>r._target==='achieved');
+  const below   =d.filter(r=>r._target==='below'&&!['disabled','waiting'].includes(r._cls));
+  const top3    =active.slice(0,3);
+  const bot3    =[...active].sort((a,b)=>a._orders-b._orders).slice(0,3);
+
+  // Summary sheet
+  const tc=d.reduce((s,r)=>s+r._orders,0);
+  const th=d.reduce((s,r)=>s+r._hours,0);
+  const ar=active.length?(active.reduce((s,r)=>s+r._acpt,0)/active.length).toFixed(1)+'%':'—';
+  const reportDateDisplay=TY.reportDate||period||new Date().toLocaleDateString('ar-SA');
+  const ws0=XLSX.utils.aoa_to_sheet([
+    ['تقرير تويو الشامل — روائس اللوجستي'],
+    ['التاريخ:',reportDateDisplay],['التارجت:',target+' طلب'],['تاريخ التصدير:',new Date().toLocaleDateString('ar-SA')],
+    [''],
+    ['المؤشر','القيمة'],
+    ['إجمالي المناديب',d.length],['الطلبات المكتملة',tc],['إجمالي الساعات',th.toFixed(1)],
+    ['متوسط نسبة القبول',ar],[''],
+    ['يوزرات شغالة',active.length],['يوزرات غير شغالة',inactive.length],
+    ['متعطلين',disabled.length],['انتظار',waiting.length],[''],
+    ['حققوا التارجت',achieved.length],['خارج التارجت',below.length],
+    [''],['أفضل مندوب:',top3[0]?top3[0]._name+' ('+top3[0]._orders+' طلب)':'—'],
+  ]);
+  ws0['!cols']=[{wch:30},{wch:20}];
+  XLSX.utils.book_append_sheet(wb,ws0,'ملخص');
+
+  addSh(wb,'All Drivers',d);
+  addSh(wb,'Active Users',active);
+  addSh(wb,'Inactive Users',inactive);
+  addSh(wb,'Disabled Users',disabled);
+  addSh(wb,'Waiting Users',waiting);
+  addSh(wb,'Achieved Target',achieved);
+  addSh(wb,'Below Target',below);
+  addSh(wb,'Top Performers',top3);
+  addSh(wb,'Bottom Performers',bot3);
+
+  XLSX.writeFile(wb,name+'.xlsx');
+  tyStep(3,'done');toast('تم تصدير 9 شيتات: '+name+'.xlsx','ok');
+}
+
+/* ══════════════════════════════════
+   TOYOU — DAILY REPORT EXPORT (ExcelJS — full formatting)
+══════════════════════════════════ */
+async function tyDailyExport(){
+  const d=TY.merged;
+  if(!d.length){toast('لا توجد بيانات للتصدير','err');return;}
+  if(typeof ExcelJS==='undefined'){toast('ExcelJS لم يتحمل بعد — تحقق من الاتصال','err');return;}
+
+  const target=parseInt(document.getElementById('ty-target').value)||15;
+  const expName=document.getElementById('ty-expName')?.value||'تقرير_يومي';
+
+  // ── helpers ──
+  function hhmm(h){const hr=Math.floor(h),mn=Math.round((h-hr)*60);return hr+':'+String(mn).padStart(2,'0');}
+  function stars(o){if(o<=0)return '';return '⭐'.repeat(Math.min(6,Math.max(1,Math.ceil(o/3))));}
+  function p4(n){return +n.toFixed(4);}
+  function dateSerial(s){
+    if(!s)return null;
+    try{const dt=new Date(String(s).trim().replace(/\//g,'-')+'T00:00:00Z');
+      if(isNaN(dt.getTime()))return null;
+      return Math.round(dt.getTime()/86400000)+25569;
+    }catch(e){return null;}
+  }
+
+  // ── split data ──
+  const working=d.filter(r=>r._orders>0).sort((a,b)=>b._orders-a._orders);
+  const stopped=d.filter(r=>r._orders===0);
+
+  // ── car-type aggregates ──
+  function ctO(ct){return working.filter(r=>(r._carType||'روائس')===ct).reduce((s,r)=>s+r._orders,0);}
+  function ctC(ct){return working.filter(r=>(r._carType||'روائس')===ct).length;}
+  function ctR(ct){const o=ctO(ct),c=ctC(ct);return c>0?p4(o/(c*target)):0;}
+
+  // ── city aggregates (top 3) ──
+  const allCities=[...new Set(d.map(r=>r._city).filter(c=>c&&c!=='—'))].sort();
+  const cy1=allCities[0]||'', cy2=allCities[1]||'', cy3=allCities[2]||'';
+  function cyO(cy){return cy?working.filter(r=>r._city===cy).reduce((s,r)=>s+r._orders,0):0;}
+  function cyC(cy){return cy?working.filter(r=>r._city===cy).length:0;}
+  function cyR(cy){const o=cyO(cy),c=cyC(cy);return c>0?p4(o/(c*target)):0;}
+
+  // ── totals ──
+  const totalOrders=working.reduce((s,r)=>s+r._orders,0);
+  const totalActive=working.length;
+  const totalRate=totalActive>0?p4(totalOrders/(totalActive*target)):0;
+  const achieved=working.filter(r=>r._orders>=target);
+  const below=working.filter(r=>r._orders<target);
+  const achPct=totalActive>0?p4(achieved.length/totalActive):0;
+  const belPct=totalActive>0?p4(below.length/totalActive):0;
+  const top1=working[0]||null;
+  const bot1=working[working.length-1]||null;
+
+  // ── report date serial (today) ──
+  const today=new Date();
+  const rptSerial=Math.round(today.getTime()/86400000)+25569;
+
+  // ── stopped helpers ──
+  function stDesc(r){
+    if(!r)return '';
+    if(r._cls==='disabled')return 'اليوزر متعطل';
+    if(r._cls==='waiting')return 'في الانتظار';
+    return r._name||'';
+  }
+  function sg(si){
+    const s=stopped[si];
+    return s?{id:s._id,en:s._nameEn||'',desc:stDesc(s),cls:s._cls}:{id:'',en:'',desc:'',cls:''};
+  }
+
+  // ══ ExcelJS workbook ══
+  const wb=new ExcelJS.Workbook();
+  wb.creator='Rawaes Dashboard';wb.created=new Date();
+  const shName=(TY.reportDate||today.toLocaleDateString('ar-SA')).replace(/[/*\[\]:?\\]/g,'').slice(0,31)||'تقرير';
+  const ws=wb.addWorksheet(shName,{views:[{rightToLeft:true}]});
+
+  // ── column widths (19 cols A–S) ──
+  ws.columns=[
+    {width:6},{width:10},{width:26},{width:13},{width:9},{width:16},{width:11},
+    {width:10},{width:11},{width:9},{width:16},{width:20},
+    {width:2},
+    {width:9},{width:26},{width:24},
+    {width:15},{width:7},{width:9}
+  ];
+
+  // ── colour palette ──
+  const C={
+    DARK_BLUE:'1F3864', MED_BLUE:'2F75B6', LIGHT_BLUE:'DAEEF3',
+    ROW_GREEN:'E2EFDA', ROW_YELLOW:'FFEB9C', ROW_RED:'FFB6B6',
+    CITY_MEDINA:'C6EFCE', CITY_JEDDAH:'FCE4D6',
+    PERSONAL:'FFD966',
+    DIS:'FFB6C1', WAIT:'FFF2CC',
+    WHITE:'FFFFFF', BLACK:'000000', BORDER:'B8CCE4'
+  };
+
+  // ── style factories ──
+  const mkFill=h=>({type:'pattern',pattern:'solid',fgColor:{argb:'FF'+h}});
+  const mkFont=(h,bold=false,sz=10)=>({name:'Calibri',size:sz,bold,color:{argb:'FF'+h}});
+  const mkAlign=(h='center',v='middle',wrap=false)=>({horizontal:h,vertical:v,wrapText:wrap,readingOrder:2});
+  const thinLine={style:'thin',color:{argb:'FF'+C.BORDER}};
+  const mkBdr=()=>({top:thinLine,left:thinLine,bottom:thinLine,right:thinLine});
+
+  // apply uniform style to a column range within a row
+  function styleRange(row,bg,fontHex,bold,c1,c2){
+    for(let c=c1;c<=c2;c++){
+      const cell=row.getCell(c);
+      if(bg)cell.fill=mkFill(bg);
+      cell.font=mkFont(fontHex,bold);
+      cell.alignment=mkAlign();
+      cell.border=mkBdr();
+    }
+  }
+  // full-row header style (left A-L + right N-S, skip M separator)
+  function hdrRow(row,bg,fontHex,bold){
+    styleRange(row,bg,fontHex,bold,1,12);
+    styleRange(row,bg,fontHex,bold,14,19);
+  }
+  // colour stopped cells N-P if disabled/waiting
+  function styledStopped(row,si){
+    const s=stopped[si];if(!s)return;
+    const bg=s._cls==='disabled'?C.DIS:s._cls==='waiting'?C.WAIT:null;
+    if(!bg)return;
+    [14,15,16].forEach(c=>{
+      const cell=row.getCell(c);
+      cell.fill=mkFill(bg);
+      cell.font=mkFont(C.BLACK,false);
+      cell.alignment=mkAlign();
+      cell.border=mkBdr();
+    });
+  }
+
+  // ── ROW 1 — section title headers ──
+  const r1=ws.addRow([
+    '','','Our car','','City','','',
+    'Top & Bottom Performers','','','','',
+    '','اليوزرات المتوقفه ('+stopped.length+')','','التحليل','العدد','النسبة',''
+  ]);
+  r1.height=22;
+  hdrRow(r1,C.DARK_BLUE,C.WHITE,true);
+  ws.mergeCells('C1:D1'); ws.mergeCells('E1:G1');
+  ws.mergeCells('H1:L1'); ws.mergeCells('N1:P1');
+
+  // ── ROW 2 — المجموع sub-headers + stopped[0] + achieved ──
+  const s0=sg(0);
+  const r2=ws.addRow([
+    rptSerial,'المجمـوع','روائس','شخصى',cy1,cy2,cy3,
+    'الوصف','عدد الطلبات','اسم المندوب','ملاحظات','',
+    '',s0.id,s0.en,s0.desc,
+    'حققوا التارجت',achieved.length,achPct
+  ]);
+  r2.height=20; hdrRow(r2,C.MED_BLUE,C.WHITE,true);
+  r2.getCell(1).numFmt='DD/MM/YYYY';
+  r2.getCell(19).numFmt='0%';
+  styledStopped(r2,0);
+
+  // ── ROW 3 — إجمالي الطلبات + أعلى مندوب + stopped[1] + خارج التارجت ──
+  const s1=sg(1);
+  const r3=ws.addRow([
+    'التارقت',totalOrders,ctO('روائس'),ctO('شخصى'),cyO(cy1),cyO(cy2),cyO(cy3),
+    'الاعلى تحقيق',top1?top1._orders:0,top1?top1._name:'',top1?p4(top1._orders/target):0,'',
+    '',s1.id,s1.en,s1.desc,
+    'خارج التارجت',below.length,belPct
+  ]);
+  r3.height=18; hdrRow(r3,C.LIGHT_BLUE,C.BLACK,false);
+  r3.getCell(11).numFmt='0%'; r3.getCell(19).numFmt='0%';
+  styledStopped(r3,1);
+
+  // ── ROW 4 — نسب التحقيق + أقل مندوب + stopped[2] + الإجمالي ──
+  const s2=sg(2);
+  const r4=ws.addRow([
+    'نسبت التحقيق',totalRate,ctR('روائس'),ctR('شخصى'),cyR(cy1),cyR(cy2),cyR(cy3),
+    'الاقل تحقيق',bot1?bot1._orders:0,bot1?bot1._name:'',bot1?p4(bot1._orders/target):0,'',
+    '',s2.id,s2.en,s2.desc,
+    'الإجمالي',totalActive,1
+  ]);
+  r4.height=18; hdrRow(r4,C.LIGHT_BLUE,C.BLACK,false);
+  [2,3,4,5,6,7,11,19].forEach(c=>r4.getCell(c).numFmt='0%');
+  styledStopped(r4,2);
+
+  // ── ROW 5 — اعداد الموظفين + stopped[3] ──
+  const s3=sg(3);
+  const r5=ws.addRow([
+    'اعداد الموظفين',totalActive,ctC('روائس'),ctC('شخصى'),cyC(cy1),cyC(cy2),cyC(cy3),
+    '','','','','',
+    '',s3.id,s3.en,s3.desc,'','',''
+  ]);
+  r5.height=18; hdrRow(r5,C.LIGHT_BLUE,C.BLACK,false);
+  styledStopped(r5,3);
+
+  // ── ROWS 6-7 — فراغ + stopped[4-5] ──
+  for(let si=4;si<=5;si++){
+    const sx=sg(si);
+    const rx=ws.addRow(['','','','','','','','','','','','','',sx.id,sx.en,sx.desc,'','','']);
+    rx.height=16; styledStopped(rx,si);
+  }
+
+  // ── ROW 8 — أسماء الأعمدة ──
+  const s6=sg(6);
+  const r8=ws.addRow([
+    '#','Rep ID','الاسم','تاريخ البداية','السيارة','الجوال','المدينة',
+    'الطلبات','الساعات','النسبة','ملاحظات','',
+    '',s6.id,s6.en,s6.desc,'','',''
+  ]);
+  r8.height=22; hdrRow(r8,C.DARK_BLUE,C.WHITE,true);
+  styledStopped(r8,6);
+
+  // ── صفوف البيانات ──
+  const maxRows=Math.max(working.length,stopped.length>7?stopped.length-7:0);
+  for(let i=0;i<maxRows;i++){
+    const r=working[i];
+    const s=stopped[i+7];
+    const rate=r?r._orders/target:0;
+    const ds=r?dateSerial(r._startDate):null;
+
+    const dataRow=ws.addRow([
+      r?i+1:'',  r?r._id:'',  r?r._name:'',
+      r?(ds||''):'',
+      r?(r._carType||'روائس'):'',
+      r?r._phone:'',  r?r._city:'',
+      r?r._orders:'', r?hhmm(r._hours):'',
+      r?p4(rate):'',
+      r?stars(r._orders):'',
+      r?(r._notes||''):'',
+      '',
+      s?s._id:'', s?s._nameEn||'':'', s?stDesc(s):'',
+      '','',''
+    ]);
+    dataRow.height=17;
+
+    if(r){
+      // ── لون الصف حسب نسبة الأداء ──
+      const rowBg=rate>=1?C.ROW_GREEN:rate>=0.8?C.ROW_YELLOW:C.ROW_RED;
+      styleRange(dataRow,rowBg,C.BLACK,false,1,12);
+
+      // ── لون خلية المدينة ──
+      const cv=(r._city||'').toLowerCase();
+      const cityCell=dataRow.getCell(7);
+      if(cv==='medina'||cv.includes('مدين')){
+        cityCell.fill=mkFill(C.CITY_MEDINA);
+        cityCell.font=mkFont('375623',true,10);
+      }else if(cv==='jeddah'||cv.includes('جد')){
+        cityCell.fill=mkFill(C.CITY_JEDDAH);
+        cityCell.font=mkFont('833C00',true,10);
+      }
+
+      // ── لون خلية السيارة لو شخصى ──
+      if((r._carType||'').includes('شخص')){
+        const carCell=dataRow.getCell(5);
+        carCell.fill=mkFill(C.PERSONAL);
+        carCell.font=mkFont(C.BLACK,true,10);
+      }
+
+      // ── تنسيقات الأرقام ──
+      dataRow.getCell(10).numFmt='0%';     // النسبة كـ %
+      if(ds) dataRow.getCell(4).numFmt='DD-MMM-YY'; // التاريخ
+
+      // ── ترتيب وطلبات بولد ──
+      dataRow.getCell(1).font=mkFont(C.BLACK,true,10);
+      dataRow.getCell(8).font=mkFont(C.BLACK,true,11);
+    }
+
+    // ── لون خلايا المتوقفين ──
+    if(s){
+      const stBg=s._cls==='disabled'?C.DIS:s._cls==='waiting'?C.WAIT:null;
+      if(stBg){
+        [14,15,16].forEach(c=>{
+          const cell=dataRow.getCell(c);
+          cell.fill=mkFill(stBg);
+          cell.font=mkFont(C.BLACK,false,10);
+          cell.alignment=mkAlign();
+          cell.border=mkBdr();
+        });
+      }
+    }
+  }
+
+  // ── تحميل الملف ──
+  try{
+    const buf=await wb.xlsx.writeBuffer();
+    const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url; a.download=expName+'_يومي.xlsx';
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a); URL.revokeObjectURL(url);
+    toast('✓ تم تصدير التقرير اليومي: '+expName+'_يومي.xlsx','ok');
+  }catch(e){
+    console.error('ExcelJS export error:',e);
+    toast('خطأ في التصدير: '+e.message,'err');
+  }
+}
+
+function tyReset(){
+  TY.data={perf:[],nam:[],wal:[]};TY.merged=[];TY.filtered=[];TY.subFilter='all';TY.reportDate='';
+  tyChObjs.forEach(c=>{try{c.destroy()}catch(e){}});tyChObjs=[];
+  ['perf','nam','wal'].forEach(t=>{document.getElementById('tc-'+t).classList.remove('done');document.getElementById('ti-'+t).value=''});
+  const btn=document.getElementById('ty-mergeBtn');btn.disabled=true;btn.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 00-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0020 4.77 5.07 5.07 0 0019.91 1S18.73.65 16 2.48a13.38 13.38 0 00-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 005 4.77a5.44 5.44 0 00-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 009 18.13V22"/></svg> تحليل وتصنيف المناديب';btn.style.background='';
+  document.getElementById('ty-cnt').textContent='0';
+  document.getElementById('ty-results').style.display='none';document.getElementById('ty-upload').style.display='block';
+  [1,2,3].forEach(n=>{const el=document.getElementById('ty-s'+n);el.classList.remove('active','done');if(n===1)el.classList.add('active')});
+  document.querySelectorAll('#ty-subTabs .sub-btn').forEach((b,i)=>{b.classList.toggle('active',i===0)});
+}
+
+/* ══════════════════════════════════
+   TOYOU API INTEGRATION
+══════════════════════════════════ */
+
+// ── Clean Odoo URL: extract origin only (strip /path, ?query, #hash) ──
+function cleanOdooUrl(raw){
+  const s=(raw||'').trim();
+  if(!s) return s;
+  try{
+    const u=new URL(s);
+    return u.origin;  // e.g. "https://fcp.erp.amhub.org"
+  }catch(e){
+    // Fallback: strip everything after first # or ?
+    return s.replace(/#.*/,'').replace(/\?.*/,'').replace(/\/+$/,'');
+  }
+}
+
+// ── Auth mode state ──
+let TY_AUTH_MODE='session';
+
+// ── Switch auth mode ──
+function tySetAuth(mode){
+  TY_AUTH_MODE=mode;
+  const isApi=mode==='apikey';
+  document.getElementById('auth-mode-session').classList.toggle('active',!isApi);
+  document.getElementById('auth-mode-apikey').classList.toggle('active', isApi);
+  document.getElementById('ty-apikeySection').style.display = isApi?'block':'none';
+  document.getElementById('ty-sessionNotice').style.display = isApi?'none':'flex';
+  document.getElementById('ty-corsWarning').style.display   = isApi?'none':'flex';
+  localStorage.setItem('ty_auth_mode',mode);
+  tyApiSt('idle', isApi
+    ? 'وضع API Key — أدخل المفتاح ثم اضغط Test'
+    : 'وضع Session Cookies — تأكد من تسجيل الدخول في Odoo');
+}
+
+// ── Toggle API key visibility ──
+function tyToggleKey2(){
+  const inp=document.getElementById('ty-apiKey');
+  const ic =document.getElementById('ty-eyeIcon2');
+  inp.type=inp.type==='password'?'text':'password';
+  ic.innerHTML=inp.type==='text'
+    ?'<path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>'
+    :'<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+}
+
+// ── Build fetch options based on auth mode ──
+function getOdooFetchOpts(bodyObj){
+  const base={
+    method:'POST',
+    body:JSON.stringify(bodyObj),
+    signal:AbortSignal.timeout(30000)
+  };
+  if(TY_AUTH_MODE==='apikey'){
+    const key  =(document.getElementById('ty-apiKey')?.value||'').trim();
+    const login=(document.getElementById('ty-apiLogin')?.value||'').trim();
+    if(!key)  {toast('أدخل API Key أولاً','err');  throw new Error('API Key missing');}
+    if(!login){toast('أدخل Login Email أولاً','err');throw new Error('Login Email missing');}
+    // Odoo standard: Authorization: Basic base64(email:apikey)
+    const basicToken=btoa(login+':'+key);
+    return {...base,
+      headers:{'Content-Type':'application/json','Authorization':'Basic '+basicToken},
+      credentials:'omit'
+    };
+  }
+  // Session mode
+  return {...base,
+    headers:{'Content-Type':'application/json'},
+    credentials:'include'
+  };
+}
+
+// ── Init: load saved Odoo settings ──
+(function tyApiInit(){
+  try{
+    const u=localStorage.getItem('ty_api_url');
+    if(u) document.getElementById('ty-apiUrl').value=u;
+    const m=localStorage.getItem('ty_api_model');
+    if(m) document.getElementById('ty-apiModel').value=m;
+    const k=localStorage.getItem('ty_api_key_enc');
+    if(k){ try{ document.getElementById('ty-apiKey').value=atob(k); }catch(e){} }
+    const lg=localStorage.getItem('ty_api_login');
+    if(lg){ try{ document.getElementById('ty-apiLogin').value=lg; }catch(e){} }
+    const am=localStorage.getItem('ty_auth_mode');
+    if(am==='apikey') tySetAuth('apikey');
+  }catch(e){}
+  // Default dates: today ↔ 7 days ago
+  const now=new Date(), wk=new Date(now-7*864e5);
+  document.getElementById('ty-dateTo').value  = now.toISOString().slice(0,10);
+  document.getElementById('ty-dateFrom').value= wk.toISOString().slice(0,10);
+})();
+
+// ── Mode toggle: file / API ──
+function tySetMode(mode){
+  const api=mode==='api';
+  document.getElementById('ty-fileSection').style.display = api?'none':'block';
+  document.getElementById('ty-apiSection').style.display  = api?'block':'none';
+  document.getElementById('ty-modeFile').classList.toggle('active',!api);
+  document.getElementById('ty-modeApi').classList.toggle('active', api);
+}
+
+// ── tyToggleKey: not used (session-based auth) ──
+function tyToggleKey(){}
+
+// ── Reset to Odoo defaults ──
+function tyApiDelete(){
+  localStorage.removeItem('ty_api_url');
+  localStorage.removeItem('ty_api_model');
+  localStorage.removeItem('ty_api_key_enc');
+  localStorage.removeItem('ty_api_login');
+  localStorage.removeItem('ty_auth_mode');
+  document.getElementById('ty-apiUrl').value='https://fcp.erp.amhub.org';
+  document.getElementById('ty-apiModel').value='hr.employee';
+  document.getElementById('ty-apiKey').value='';
+  document.getElementById('ty-apiLogin').value='';
+  tySetAuth('session');
+  tyApiSt('idle','تمت إعادة الإعدادات الافتراضية');
+  apiLog('🔄 Reset to defaults');
+  toast('تمت إعادة الإعدادات','ok');
+}
+
+// ── Console log for API section ──
+function apiLog(msg){
+  const l=document.getElementById('ty-apiLog');
+  l.style.display='block';
+  const t=new Date().toLocaleTimeString('ar-SA');
+  l.textContent+=`[${t}] ${msg}\n`;
+  l.scrollTop=l.scrollHeight;
+}
+
+// ── Status display ──
+const _apiIco={
+  idle:   '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>',
+  ok:     '<polyline points="20 6 9 17 4 12"/>',
+  err:    '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>',
+  loading:'<path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>'
+};
+function tyApiSt(type,msg){
+  const el=document.getElementById('ty-apiStatus');
+  el.className='api-status '+(type==='loading'?'loading':type);
+  const spin=type==='loading';
+  el.innerHTML=`<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+    ${spin?'style="animation:spin .9s linear infinite"':''}>${_apiIco[type]||_apiIco.idle}</svg>
+    <span id="ty-apiStatusTxt">${msg}</span>`;
+}
+
+// ── Test Odoo Session ──
+async function tyApiTest(){
+  const url  =cleanOdooUrl(document.getElementById('ty-apiUrl').value);
+  const model=document.getElementById('ty-apiModel').value.trim()||'hr.employee';
+  if(!url){toast('أدخل Odoo URL أولاً','err');return;}
+  // Auto-clean the input field
+  document.getElementById('ty-apiUrl').value=url;
+
+  localStorage.setItem('ty_api_url',url);
+  localStorage.setItem('ty_api_model',model);
+
+  const btn=document.getElementById('ty-testBtn');
+  btn.disabled=true;
+  const authLabel=TY_AUTH_MODE==='apikey'?'API Key (Basic Auth)':'Session Cookies';
+  tyApiSt('loading','⏳ جاري الاتصال بـ Odoo ('+authLabel+')...');
+  apiLog('🔌 Testing Odoo connection: '+url);
+  apiLog('   Auth: '+authLabel);
+  apiLog('   Model: '+model);
+
+  try{
+    // Quick search_read with limit:1 to verify connection/session
+    const bodyObj={
+      jsonrpc:'2.0', method:'call',
+      params:{ model, domain:[], fields:['id','name'], limit:1 },
+      id:Date.now()
+    };
+    const fetchOpts=getOdooFetchOpts(bodyObj);
+    fetchOpts.signal=AbortSignal.timeout(10000);
+    const res=await fetch(`${url}/web/dataset/search_read`, fetchOpts);
+    if(!res.ok) throw new Error('HTTP '+res.status+' '+res.statusText);
+    const json=await res.json();
+    if(json.error){
+      const msg=json.error.data?.message||json.error.message||JSON.stringify(json.error);
+      throw new Error(msg);
+    }
+    const cnt=json.result?.records?.length??0;
+    const okLabel=TY_AUTH_MODE==='apikey'?'✓ API Key صحيح — Odoo يستجيب':'✓ Session نشطة — Odoo يستجيب';
+    tyApiSt('ok',`${okLabel} (${model} ✓)`);
+    apiLog(`✓ Connected via ${authLabel} — model "${model}" accessible`);
+    apiLog(`  Sample records returned: ${cnt}`);
+    toast(okLabel,'ok');
+  }catch(e){
+    const msg=e.message||'';
+    if(/failed to fetch|networkerror|cors|load failed/i.test(msg)){
+      tyApiSt('err','✗ CORS مانع الاتصال — شغّل Chrome بدون CORS (انظر التعليمات أعلاه)');
+      apiLog('✗ CORS/Network blocked — run Chrome with --disable-web-security');
+      apiLog('  URL attempted: '+url+'/web/dataset/search_read');
+    } else if(/session|login|auth|odoo.exceptions/i.test(msg)){
+      tyApiSt('err','✗ الجلسة منتهية — سجّل الدخول لـ Odoo أولاً');
+      apiLog('✗ Session expired or not authenticated');
+    } else {
+      tyApiSt('err','✗ '+msg.slice(0,80));
+      apiLog('✗ '+msg);
+    }
+    toast('فشل الاتصال','err');
+  }
+  btn.disabled=false;
+}
+
+// ── Fetch from Odoo JSON-RPC & Analyze ──
+async function tyApiFetch(){
+  const url  =cleanOdooUrl(document.getElementById('ty-apiUrl').value);
+  const model=document.getElementById('ty-apiModel').value.trim()||'hr.employee';
+  if(!url){toast('أدخل Odoo URL أولاً','err');return;}
+  // Auto-clean the input field
+  document.getElementById('ty-apiUrl').value=url;
+
+  localStorage.setItem('ty_api_url',url);
+  localStorage.setItem('ty_api_model',model);
+
+  const btn=document.getElementById('ty-fetchBtn');
+  btn.disabled=true;
+  btn.innerHTML='<div class="spinner" style="border-color:rgba(0,0,0,.2);border-top-color:#000"></div> جاري الجلب...';
+  tyApiSt('loading','⏳ جاري جلب بيانات Odoo...');
+  apiLog('━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  apiLog('📡 Odoo JSON-RPC Fetch');
+  apiLog('   URL: '+url);
+  apiLog('   Model: '+model);
+
+  // Uses session cookies OR API key depending on TY_AUTH_MODE
+  const _post=bodyObj=>fetch(`${url}/web/dataset/search_read`, getOdooFetchOpts(bodyObj));
+
+  const _chk=(json,label)=>{
+    if(json.error){
+      const m=json.error.data?.message||json.error.message||JSON.stringify(json.error.data||json.error);
+      if(/session|login|auth|access denied/i.test(m+JSON.stringify(json.error)))
+        throw new Error('الجلسة منتهية — سجّل الدخول لـ Odoo أولاً ثم أعد المحاولة');
+      throw new Error(label+': '+m.slice(0,120));
+    }
+    return json.result?.records||json.result||[];
+  };
+
+  try{
+    // ── 1. Fetch hr.employee (riders list) ──
+    apiLog('→ POST /web/dataset/search_read  model='+model);
+    const empRes=await _post({
+      jsonrpc:'2.0', method:'call',
+      params:{
+        model,
+        domain:[],
+        fields:['id','be_id','name','work_phone','city_id','condition'],
+        limit:3000
+      },
+      id:Date.now()
+    });
+    if(!empRes.ok) throw new Error('HTTP '+empRes.status+' '+empRes.statusText);
+    const empJson=await empRes.json();
+    const employees=_chk(empJson,'hr.employee');
+    apiLog(`✓ Employees fetched: ${employees.length} records`);
+    if(!employees.length) throw new Error('لا توجد بيانات — تحقق من Model والصلاحيات');
+
+    // ── 2. Normalize hr.employee → internal TY format ──
+    // Odoo fields: be_id=ToYou ID, name=driver name, work_phone=phone, city_id=[id,name], condition=status
+    TY.data.nam=employees.map(e=>{
+      // city_id can be [odooId, "City Name"] or just a string or false
+      const city=Array.isArray(e.city_id)?e.city_id[1]:(e.city_id||'—');
+      return {
+        'ToYou ID':     String(e.be_id||e.id||''),
+        'الاسم الفعلي': e.name||'—',
+        'الجوال':       e.work_phone||'—',
+        'المدينة':      city==='false'||!city?'—':city,
+        'حالة اليوزر':  e.condition||'',   // eligible / disabled / suspended / pending / renewal
+        'ملاحظات':      '',
+      };
+    });
+
+    // No performance data from Odoo yet (future: query sale.order / delivery model)
+    // Riders classified by condition field; eligible ones shown as active
+    TY.data.perf=[];
+    TY.data.wal=[];
+
+    // ── 3. Sync target, run analysis ──
+    document.getElementById('ty-target').value=
+      document.getElementById('ty-apiTarget').value;
+
+    apiLog(`✓ Normalized: ${TY.data.nam.length} riders`);
+    apiLog('🔄 Running classification...');
+    tyApiSt('loading','🔄 جاري التصنيف...');
+
+    _tyMerge();
+    tyStep(1,'done');tyStep(2,'done');tyStep(3,'active');
+
+    // ── 4. Summary log ──
+    const s={
+      active:  TY.merged.filter(r=>r._cls==='active').length,
+      inactive:TY.merged.filter(r=>r._cls==='inactive').length,
+      disabled:TY.merged.filter(r=>r._cls==='disabled').length,
+      waiting: TY.merged.filter(r=>r._cls==='waiting').length,
+    };
+    tyApiSt('ok',`✓ ${TY.merged.length} مندوب من Odoo — Active:${s.active} Disabled:${s.disabled} Waiting:${s.waiting}`);
+    apiLog(`✅ Done: ${TY.merged.length} total`);
+    apiLog(`   Active: ${s.active} | Inactive: ${s.inactive} | Disabled: ${s.disabled} | Waiting: ${s.waiting}`);
+    apiLog('━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    toast('✓ Odoo: تم تحليل '+TY.merged.length+' مندوب','ok');
+
+  }catch(e){
+    const em=e.message||'';
+    if(/failed to fetch|networkerror|cors|load failed/i.test(em)){
+      tyApiSt('err','✗ CORS — شغّل Chrome بدون CORS أولاً (انظر التعليمات)');
+      apiLog('✗ CORS blocked. Fix: chrome.exe --disable-web-security --user-data-dir="C:/ChromeTemp"');
+    } else {
+      tyApiSt('err','✗ '+em.slice(0,100));
+      apiLog('✗ Error: '+em);
+    }
+    toast('فشل: '+em.slice(0,50),'err');
+    btn.disabled=false;
+    btn.innerHTML='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg> جلب البيانات وتحليلها';
+  }
+}
+
+/* ══════════════════════════════════
+   TOAST
+══════════════════════════════════ */
+let _tt;
+function toast(msg,type){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.className='toast '+type+' show';
+  clearTimeout(_tt);_tt=setTimeout(()=>t.classList.remove('show'),3500);
+}
+</script>
+</body>
+</html>
