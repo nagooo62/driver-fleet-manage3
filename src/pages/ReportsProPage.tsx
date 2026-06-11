@@ -17,8 +17,8 @@ import {
   deleteReport, listReports, saveReport,
   type ReportRow, type SavedReport,
 } from '@/lib/reportsArchive';
-import toyouDriversData from '@/data/toyouDrivers.json';
-import toyouArchiveData from '@/data/toyouArchive.json';
+import appsDriversData from '@/data/appsDrivers.json';
+import { AppsStatusReport } from '@/components/reports/AppsStatusReport';
 
 /* ═══ التطبيقات ═══ */
 type AppKey = SavedReport['app'];
@@ -30,14 +30,16 @@ const APP_TABS: Array<{ value: AppKey; label: string; cls: string }> = [
   { value: 'chefz',         label: 'The Chefz',     cls: 'bg-purple-500/15 text-purple-400' },
 ];
 
-/* ═══ خريطة الأسماء من دليل التشغيل ═══ */
+/* ═══ خريطة الأسماء من دليل التشغيل — كل التطبيقات (فعالين + أرشيف) ═══ */
 interface NameEntry { name: string; nameEn: string; phone: string | null; city: string | null }
+interface RawEntry { appId: string | null; name: string; nameEn: string; phone: string | null; city: string | null }
 const NAMES_MAP: Record<string, NameEntry> = {};
-for (const d of toyouDriversData as Array<{ toyouId: string; name: string; nameEn: string; phone: string | null; city: string | null }>) {
-  NAMES_MAP[d.toyouId] = { name: d.name, nameEn: d.nameEn, phone: d.phone, city: d.city };
-}
-for (const d of toyouArchiveData as Array<{ toyouId: string | null; name: string; nameEn: string; phone: string | null; city: string | null }>) {
-  if (d.toyouId && !NAMES_MAP[d.toyouId]) NAMES_MAP[d.toyouId] = { name: d.name, nameEn: d.nameEn, phone: d.phone, city: d.city };
+for (const appData of Object.values(appsDriversData as Record<string, { active: RawEntry[]; archive: RawEntry[] }>)) {
+  for (const d of [...appData.active, ...appData.archive]) {
+    if (d.appId && !NAMES_MAP[d.appId]) {
+      NAMES_MAP[d.appId] = { name: d.name, nameEn: d.nameEn, phone: d.phone, city: d.city };
+    }
+  }
 }
 
 /* ═══ كشف الأعمدة — أسماء مرنة عربي/إنجليزي ═══ */
@@ -299,6 +301,9 @@ export default function ReportsProPage() {
         title={`تقارير ${appMeta.label}`}
         description="استيراد ملف الأداء، مطابقة الأسماء من دليل التشغيل، حفظ يومي بالأرشيف، فلترة بالتاريخ، رسم بياني، وتصدير Excel."
       />
+
+      {/* ─── تقرير حالة التطبيقات + التنبيهات ─── */}
+      <AppsStatusReport />
 
       {/* ─── تبويبات التطبيقات ─── */}
       <section className="glass-panel flex flex-wrap gap-1.5 p-3" role="tablist" aria-label="اختيار التطبيق">
