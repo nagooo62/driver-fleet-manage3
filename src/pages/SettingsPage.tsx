@@ -1,6 +1,7 @@
 ﻿import { useQuery } from '@tanstack/react-query';
 import { Building2, ServerCog, ShieldCheck, Sparkles, Wallet } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { RolesPermissionsPanel } from '@/components/settings/RolesPermissionsPanel';
 import { supabase } from '@/integrations/supabase/client';
 import { DEMO_MODE, getDemoCompanySettings } from '@/lib/demoMode';
 import { PERMISSIONS, usePermissions } from '@/lib/rbac';
@@ -32,6 +33,9 @@ export default function SettingsPage() {
         description="مساحة مهيأة لإدارة RBAC، تعريف الشركة، والاستعدادات البنيوية لـ GPS وAI والمالية داخل منصة SaaS-ready."
         aside={<div className="glass-pill">الدور الحالي: {profile?.role ?? 'employee'}</div>}
       />
+
+      {/* ─── الأدوار والصلاحيات ─── */}
+      <RolesPermissionsPanel />
 
       <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
         <section className="glass-panel p-6">

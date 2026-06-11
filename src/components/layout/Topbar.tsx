@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { NotificationsPanel } from '@/components/NotificationsPanel';
+import { AnimatedLogo } from '@/components/branding/AnimatedLogo';
 import { resolveRouteMeta } from '@/config/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
@@ -61,9 +62,7 @@ export function Topbar({ onOpenMenu }: TopbarProps) {
             <Menu className="h-5 w-5" />
           </Button>
 
-          <div className="logo-glow float-gentle flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/18 text-lg font-display text-primary" aria-hidden="true">
-            ر
-          </div>
+          <AnimatedLogo size="sm" />
 
           <div className="space-y-1">
             <p className="text-xs text-muted-foreground">{company?.company_name ?? 'روائس'}</p>

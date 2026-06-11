@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ScrollArea } from '@/components/ui/scroll-area';
+
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuditLog } from '@/hooks/useAuditLog';
@@ -147,7 +147,7 @@ export function CarForm({ isOpen, onClose, car, onSave }: CarFormProps) {
           </DialogTitle>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 pr-1">
+        <div className="flex-1 overflow-y-auto pr-1 scrollbar-thin">
           <form onSubmit={handleSubmit} className="space-y-6 px-1 pb-2 pt-2">
 
             {/* صورة السيارة */}
@@ -281,7 +281,7 @@ export function CarForm({ isOpen, onClose, car, onSave }: CarFormProps) {
               </Button>
             </div>
           </form>
-        </ScrollArea>
+        </div>
       </DialogContent>
     </Dialog>
   );

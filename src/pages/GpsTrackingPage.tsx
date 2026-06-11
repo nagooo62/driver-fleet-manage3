@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { MetricCard } from '@/components/dashboard/MetricCard';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { GpsOrdersAudit } from '@/components/gps/GpsOrdersAudit';
 import { useDashboardStats } from '@/hooks/useDashboard';
 
 const mockTrips = [
@@ -49,12 +50,15 @@ export default function GpsTrackingPage() {
         }
       />
 
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="stagger-children grid gap-4 md:grid-cols-4">
         <MetricCard title="مناديب على الطريق" value={mockTrips.filter((t) => t.status === 'active').length} subtitle="رحلة نشطة الآن" icon={Navigation} tone="primary" />
         <MetricCard title="إجمالي الكيلومترات" value="133.1" subtitle="كم اليوم" icon={Route} tone="accent" />
         <MetricCard title="في الانتظار" value={mockTrips.filter((t) => t.status === 'idle').length} subtitle="سيارة متوقفة" icon={Car} tone="success" />
         <MetricCard title="تنبيهات خرق السياج" value={mockTrips.filter((t) => t.status === 'alert').length} subtitle="يحتاج مراجعة" icon={AlertTriangle} tone="danger" />
       </div>
+
+      {/* ─── تدقيق GPS مقابل الطلبات ─── */}
+      <GpsOrdersAudit />
 
       <div className="grid gap-6 xl:grid-cols-[1.4fr_0.6fr]">
         {/* Map placeholder */}
