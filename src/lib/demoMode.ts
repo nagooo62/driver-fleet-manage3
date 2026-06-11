@@ -1,5 +1,7 @@
 ﻿import type { Session, User } from '@supabase/supabase-js';
 import { mockCars, mockDrivers } from '@/lib/mockData';
+import toyouDriversData from '@/data/toyouDrivers.json';
+import toyouArchiveData from '@/data/toyouArchive.json';
 import type {
   Application,
   AuditLog,
@@ -101,7 +103,108 @@ function computeDocumentStatus(expiryDate: string | null | undefined): DriverDoc
   return 'valid';
 }
 
+interface RealToyouDriver {
+  toyouId: string;
+  name: string;
+  nameEn: string;
+  phone: string | null;
+  city: string | null;
+  status: string;
+  carState: string;
+  startDate: string | null;
+  plate: string | null;
+  notes: string | null;
+}
+
+interface RealToyouArchived {
+  toyouId: string | null;
+  name: string;
+  nameEn: string;
+  phone: string | null;
+  city: string | null;
+  startDate: string | null;
+  endDate: string | null;
+}
+
+/** تاريخ مستقبلي بإزاحة أيام — للوثائق الافتراضية */
+function futureDate(days: number) {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/** زرع المناديب الحقيقيين من دليل تشغيل المناديب (تطبيق تويو + الأرشيف) */
 function seedDrivers(): Driver[] {
+  const drivers: Driver[] = [];
+
+  (toyouDriversData as RealToyouDriver[]).forEach((r, index) => {
+    const st = r.status;
+    const status = st.includes('فعال') && !st.includes('غير')
+      ? 'sponsored'
+      : st.includes('انتظار') ? 'new'
+      : st.includes('متوقف') ? 'stopped'
+      : 'accepted';
+    drivers.push({
+      id: `toyou-${r.toyouId}`,
+      archived_reason: null,
+      created_at: r.startDate ? `${r.startDate}T08:00:00.000Z` : nowIso(),
+      end_date: null,
+      full_name: r.name,
+      iqama: `24${r.toyouId.padStart(8, '0')}`,
+      iqama_expiry: futureDate(60 + (index * 13) % 300),
+      license_expiry: futureDate(30 + (index * 17) % 320),
+      manager: 'روائس',
+      medical_expiry: futureDate(90 + (index * 11) % 240),
+      status,
+      updated_at: nowIso(),
+      using_app: true,
+      photo_url: null,
+      nationality: 'سوداني',
+      phone: r.phone ?? null,
+      city: r.city ?? 'المدينة المنورة',
+      profession: 'مندوب توصيل',
+      ajeer_expiry: index % 3 === 0 ? futureDate(45 + (index * 7) % 200) : null,
+      performance_score: 62 + ((index * 7) % 34),
+      working_hours: 7 + (index % 5),
+      orders_count: 12 + (index * 5) % 28,
+      app_name: 'toyou',
+    } satisfies Driver);
+  });
+
+  (toyouArchiveData as RealToyouArchived[]).slice(0, 60).forEach((r, index) => {
+    if (!r.name) return;
+    drivers.push({
+      id: `toyou-arch-${r.toyouId ?? index}`,
+      archived_reason: 'انتهاء التعاقد - أرشيف تويو',
+      created_at: r.startDate ? `${r.startDate}T08:00:00.000Z` : nowIso(),
+      end_date: r.endDate,
+      full_name: r.name,
+      iqama: `25${String(r.toyouId ?? 10000000 + index).padStart(8, '0')}`,
+      iqama_expiry: futureDate(-30 - (index * 9) % 120),
+      license_expiry: futureDate(-10 - (index * 13) % 90),
+      manager: 'روائس',
+      medical_expiry: futureDate(-5 - (index * 7) % 60),
+      status: 'archived',
+      updated_at: nowIso(),
+      using_app: false,
+      photo_url: null,
+      nationality: 'سوداني',
+      phone: r.phone ?? null,
+      city: r.city ?? 'جدة',
+      profession: 'مندوب توصيل',
+      ajeer_expiry: null,
+      performance_score: null,
+      working_hours: null,
+      orders_count: null,
+      app_name: 'toyou',
+    } satisfies Driver);
+  });
+
+  return drivers;
+}
+
+/** الزرع القديم من البيانات الوهمية — محفوظ كاحتياط غير مستخدم */
+function seedMockDrivers(): Driver[] {
   return mockDrivers.map((driver, index) => {
     const status = driver.archived
       ? 'archived'
@@ -250,7 +353,22 @@ function decodeText(value: string) {
   return value;
 }
 
+/** نسخة الزرع — ارفعها عند تغيير مصدر البيانات لإعادة الزرع تلقائياً */
+const SEED_VERSION = '2-real-toyou';
+const SEED_VERSION_KEY = 'rawaes-demo-seed-version';
+
 export function getDemoDrivers() {
+  const currentVersion = typeof window !== 'undefined'
+    ? window.localStorage.getItem(SEED_VERSION_KEY)
+    : SEED_VERSION;
+
+  if (currentVersion !== SEED_VERSION) {
+    const drivers = seedDrivers();
+    writeStorage(STORAGE_KEYS.drivers, drivers);
+    if (typeof window !== 'undefined') window.localStorage.setItem(SEED_VERSION_KEY, SEED_VERSION);
+    return drivers;
+  }
+
   const fallback = seedDrivers();
   const drivers = readStorage<Driver[]>(STORAGE_KEYS.drivers, fallback);
   if (!readStorage<Driver[] | null>(STORAGE_KEYS.drivers, null)) writeStorage(STORAGE_KEYS.drivers, drivers);
