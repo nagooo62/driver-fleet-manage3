@@ -98,7 +98,7 @@ export default function DashboardPage() {
           ))}
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <div className="stagger-children grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           <MetricCard title="إجمالي المناديب" value={stats.totalDrivers} subtitle={`${stats.activeDrivers} نشط`} icon={Users} tone="primary" />
           <MetricCard title="إجمالي السيارات" value={stats.totalCars} subtitle={`${stats.delegatedCars} مفوّضة`} icon={CarFront} tone="accent" />
           <MetricCard title="وثائق تنتهي قريبًا" value={stats.expiringDocuments} subtitle="إقامة / رخصة / طبي" icon={TriangleAlert} tone="danger" />
@@ -108,14 +108,14 @@ export default function DashboardPage() {
       )}
 
       {/* ─── بطاقات التطبيقات ─── */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-5" role="list" aria-label="عدد المناديب بكل تطبيق">
+      <div className="stagger-children grid grid-cols-2 gap-4 md:grid-cols-5" role="list" aria-label="عدد المناديب بكل تطبيق">
         {appDist.map((app) => (
           <Link
             key={app.app}
             to={`/drivers?app=${app.app}`}
             role="listitem"
             aria-label={`${app.label}: ${app.count} مندوب`}
-            className={`rounded-[24px] border p-4 text-right transition-colors duration-200 hover:brightness-125 ${APP_CARD_STYLE[app.app] ?? 'border-white/10 bg-white/5 text-white'}`}
+            className={`card-premium press-effect rounded-[24px] border p-4 text-right ${APP_CARD_STYLE[app.app] ?? 'border-white/10 bg-white/5 text-white'}`}
           >
             <div className="text-2xl font-bold tabular-nums">{app.count}</div>
             <div className="mt-1 text-sm font-semibold">{app.label}</div>

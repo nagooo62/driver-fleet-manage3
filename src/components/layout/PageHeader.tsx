@@ -28,7 +28,7 @@ export function PageHeader({
             </span>
           ) : null}
           <div className="space-y-2">
-            <h1 className="text-3xl font-semibold text-white sm:text-4xl">{title}</h1>
+            <h1 className="text-gradient text-3xl font-semibold sm:text-4xl">{title}</h1>
             <p className="max-w-3xl text-sm leading-7 text-muted-foreground sm:text-base">{description}</p>
           </div>
         </div>

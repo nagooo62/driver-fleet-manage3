@@ -57,11 +57,11 @@ export function Topbar({ onOpenMenu }: TopbarProps) {
     <>
       <header className="sticky top-4 z-30 mx-4 mt-4 flex items-center justify-between gap-4 rounded-[28px] glass-panel px-4 py-4 sm:mx-6 lg:mr-[21rem] lg:ml-8">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" className="lg:hidden" onClick={onOpenMenu}>
+          <Button variant="ghost" size="icon" className="lg:hidden" onClick={onOpenMenu} aria-label="فتح القائمة الجانبية">
             <Menu className="h-5 w-5" />
           </Button>
 
-          <div className="logo-glow flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/18 text-lg font-display text-primary">
+          <div className="logo-glow float-gentle flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/18 text-lg font-display text-primary" aria-hidden="true">
             ر
           </div>
 
@@ -85,7 +85,9 @@ export function Topbar({ onOpenMenu }: TopbarProps) {
             variant="outline"
             size="icon"
             title={theme === 'dark' ? 'وضع فاتح' : 'وضع داكن'}
+            aria-label={theme === 'dark' ? 'التبديل للوضع الفاتح' : 'التبديل للوضع الداكن'}
             onClick={toggleTheme}
+            className="press-effect"
           >
             {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </Button>
@@ -102,15 +104,22 @@ export function Topbar({ onOpenMenu }: TopbarProps) {
                 sendNotification('روائس اللوجستي', { body: 'الإشعارات مفعّلة بالفعل' });
               }
             }}
-            className={permission === 'granted' ? 'border-emerald-500/50 text-emerald-400' : ''}
+            className={`press-effect ${permission === 'granted' ? 'border-emerald-500/50 text-emerald-400' : ''}`}
+            aria-label="تفعيل إشعارات المتصفح"
           >
             <Bell className="h-4 w-4" />
           </Button>
 
-          <Button variant="outline" size="icon" className="relative" onClick={() => setNotificationsOpen(true)}>
+          <Button
+            variant="outline"
+            size="icon"
+            className="press-effect relative"
+            onClick={() => setNotificationsOpen(true)}
+            aria-label={unreadCount > 0 ? `الإشعارات — ${unreadCount} غير مقروء` : 'الإشعارات'}
+          >
             <Bell className="h-4 w-4" />
             {unreadCount > 0 ? (
-              <Badge className="absolute -top-1 -left-1 min-w-5 rounded-full bg-accent px-1.5 py-0.5 text-[10px] text-accent-foreground">
+              <Badge className="pulse-dot absolute -top-1 -left-1 min-w-5 rounded-full bg-accent px-1.5 py-0.5 text-[10px] text-accent-foreground" aria-hidden="true">
                 {unreadCount > 99 ? '99+' : unreadCount}
               </Badge>
             ) : null}
