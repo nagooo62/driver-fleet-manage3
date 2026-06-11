@@ -168,6 +168,8 @@ function seedDrivers(): Driver[] {
       working_hours: 7 + (index % 5),
       orders_count: 12 + (index * 5) % 28,
       app_name: 'toyou',
+      app_id: r.toyouId,
+      account_name: r.nameEn || null,
     } satisfies Driver);
   });
 
@@ -197,6 +199,8 @@ function seedDrivers(): Driver[] {
       working_hours: null,
       orders_count: null,
       app_name: 'toyou',
+      app_id: r.toyouId,
+      account_name: r.nameEn || null,
     } satisfies Driver);
   });
 
@@ -354,7 +358,7 @@ function decodeText(value: string) {
 }
 
 /** نسخة الزرع — ارفعها عند تغيير مصدر البيانات لإعادة الزرع تلقائياً */
-const SEED_VERSION = '2-real-toyou';
+const SEED_VERSION = '3-app-identity';
 const SEED_VERSION_KEY = 'rawaes-demo-seed-version';
 
 export function getDemoDrivers() {

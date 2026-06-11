@@ -44,11 +44,22 @@ const statusTone = (s: string) => {
 const NATIONALITIES = ['الكل', 'سعودي', 'مصري', 'يمني', 'باكستاني', 'هندي', 'بنغلاديشي', 'سوداني', 'إثيوبي', 'نيبالي', 'فلبيني', 'إندونيسي'];
 const CITIES        = ['الكل', 'الرياض', 'جدة', 'مكة المكرمة', 'المدينة المنورة', 'الدمام', 'الخبر', 'القصيم', 'أبها', 'تبوك', 'الطائف'];
 
+/** تبويبات التطبيقات أعلى الصفحة */
+const APP_TABS = [
+  { value: 'all',           label: 'الكل' },
+  { value: 'toyou',         label: 'ToYou' },
+  { value: 'hungerstation', label: 'هنقرستيشن' },
+  { value: 'jahez',         label: 'جاهز' },
+  { value: 'keeta',         label: 'كيتا' },
+  { value: 'chefz',         label: 'The Chefz' },
+];
+
 export default function DriversPage() {
   const [page,    setPage]    = useState(1);
   const [search,  setSearch]  = useState('');
   const [status,  setStatus]  = useState('all');
   const [appFilter, setAppFilter]   = useState('all');
+  const [showArchive, setShowArchive] = useState(false);
   const [natFilter, setNatFilter]   = useState('الكل');
   const [cityFilter, setCityFilter] = useState('الكل');
   const [docFilter, setDocFilter]   = useState('all');
@@ -57,7 +68,10 @@ export default function DriversPage() {
   const [editingDriver, setEditingDriver] = useState<Driver | null>(null);
   const navigate = useNavigate();
   const { can }  = usePermissions();
-  const { data, isLoading, refetch } = useDrivers({ page, pageSize: 10, search, status });
+  const { data, isLoading, refetch } = useDrivers({
+    page, pageSize: 10, search,
+    status: showArchive ? 'archived' : status,
+  });
   const { data: expiringDocuments = [] } = useExpiringDocuments(30);
   const expiringCount = useMemo(() => new Set(expiringDocuments.map((i) => i.driverId)).size, [expiringDocuments]);
 
@@ -65,6 +79,7 @@ export default function DriversPage() {
   const filtered = useMemo(() => {
     if (!data?.items) return [];
     return data.items.filter((d) => {
+      if (!showArchive && d.status === 'archived') return false;
       if (appFilter !== 'all'  && d.app_name !== appFilter)    return false;
       if (natFilter !== 'الكل' && d.nationality !== natFilter) return false;
       if (cityFilter !== 'الكل' && d.city !== cityFilter)      return false;
@@ -78,7 +93,7 @@ export default function DriversPage() {
       }
       return true;
     });
-  }, [data?.items, appFilter, natFilter, cityFilter, docFilter]);
+  }, [data?.items, appFilter, natFilter, cityFilter, docFilter, showArchive]);
 
   const activeFiltersCount = [appFilter !== 'all', natFilter !== 'الكل', cityFilter !== 'الكل', docFilter !== 'all'].filter(Boolean).length;
 
@@ -125,6 +140,45 @@ export default function DriversPage() {
           </div>
         }
       />
+
+      {/* ─── تبويبات التطبيقات + الأرشيف ─── */}
+      <section className="glass-panel flex flex-wrap items-center justify-between gap-3 p-3">
+        <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="تصفية بالتطبيق">
+          {APP_TABS.map((tab) => {
+            const isActive = appFilter === tab.value;
+            return (
+              <button
+                key={tab.value}
+                role="tab"
+                aria-selected={isActive}
+                onClick={() => { setPage(1); setAppFilter(tab.value); }}
+                className={cn(
+                  'press-effect rounded-full px-4 py-2 text-sm font-semibold transition-colors',
+                  isActive
+                    ? tab.value === 'all'
+                      ? 'bg-primary text-primary-foreground'
+                      : cn('ring-1 ring-inset ring-white/20', APP_COLORS[tab.value] ?? 'bg-primary/15 text-primary')
+                    : 'text-muted-foreground hover:bg-white/5 hover:text-foreground',
+                )}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+        <button
+          onClick={() => { setPage(1); setShowArchive(!showArchive); }}
+          aria-pressed={showArchive}
+          className={cn(
+            'press-effect rounded-full px-4 py-2 text-sm font-semibold transition-colors',
+            showArchive
+              ? 'bg-red-500/15 text-red-400 ring-1 ring-inset ring-red-500/30'
+              : 'text-muted-foreground hover:bg-white/5 hover:text-foreground',
+          )}
+        >
+          🗃️ الأرشيف {showArchive && appFilter !== 'all' ? `— ${APP_TABS.find((t) => t.value === appFilter)?.label}` : ''}
+        </button>
+      </section>
 
       {/* ─── لوحة الفلاتر المتقدمة ─── */}
       {showFilters && (
@@ -188,6 +242,7 @@ export default function DriversPage() {
             <thead>
               <tr className="border-b border-white/10 text-xs uppercase tracking-widest text-muted-foreground">
                 <th className="px-3 py-3">المندوب</th>
+                <th className="px-3 py-3">آيدي التطبيق</th>
                 <th className="px-3 py-3">الجنسية / المدينة</th>
                 <th className="px-3 py-3">الجوال</th>
                 <th className="px-3 py-3">حالة المندوب</th>
@@ -202,7 +257,7 @@ export default function DriversPage() {
               {isLoading ? (
                 Array.from({ length: 6 }).map((_, i) => (
                   <tr key={i} className="border-b border-white/6">
-                    <td colSpan={9} className="px-4 py-4 text-sm text-muted-foreground">جارٍ التحميل...</td>
+                    <td colSpan={10} className="px-4 py-4 text-sm text-muted-foreground">جارٍ التحميل...</td>
                   </tr>
                 ))
               ) : filtered.length ? filtered.map((driver) => {
@@ -221,9 +276,16 @@ export default function DriversPage() {
                         </div>
                         <div>
                           <div className="text-sm font-semibold text-white">{driver.full_name}</div>
-                          <div className="text-xs text-muted-foreground">{driver.iqama}</div>
+                          {driver.account_name && driver.account_name !== driver.full_name
+                            ? <div className="text-xs text-muted-foreground" dir="ltr">{driver.account_name}</div>
+                            : <div className="text-xs text-muted-foreground">{driver.iqama}</div>}
                         </div>
                       </button>
+                    </td>
+                    <td className="px-3 py-3">
+                      {driver.app_id
+                        ? <span className="rounded-lg bg-white/5 px-2 py-1 text-xs font-semibold text-white tabular-nums" dir="ltr">{driver.app_id}</span>
+                        : <span className="text-xs text-muted-foreground">—</span>}
                     </td>
                     <td className="px-3 py-3 text-sm text-muted-foreground">
                       <div>{driver.nationality ?? '—'}</div>
@@ -271,7 +333,7 @@ export default function DriversPage() {
                 );
               }) : (
                 <tr>
-                  <td colSpan={9} className="px-4 py-12 text-center">
+                  <td colSpan={10} className="px-4 py-12 text-center">
                     <div className="flex flex-col items-center gap-3 text-muted-foreground">
                       <User className="h-10 w-10 opacity-20" aria-hidden="true" />
                       <p className="text-sm font-medium">لا توجد نتائج مطابقة</p>

@@ -1,5 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { PERMISSIONS_CHANGED_EVENT, resolveUserPermissions } from '@/lib/permissionsStore';
 import { useAuth } from '@/hooks/useAuth';
 import { DEMO_MODE, getDemoProfile, getDemoRole } from '@/lib/demoMode';
 import { supabase } from '@/integrations/supabase/client';
@@ -26,7 +27,7 @@ export const PERMISSIONS: Permission[] = [
   'finance:read',
 ];
 
-const ROLE_PERMISSION_MAP: Record<UserRole, Permission[]> = {
+export const ROLE_PERMISSION_MAP: Record<UserRole, Permission[]> = {
   admin: [...PERMISSIONS],
   manager: [
     'dashboard:read',
@@ -116,11 +117,22 @@ export function usePermissions() {
     },
   });
 
+  // إعادة الحساب فوراً عند تعديل الصلاحيات من لوحة الإعدادات
+  const [overridesVersion, setOverridesVersion] = useState(0);
+  useEffect(() => {
+    const handler = () => setOverridesVersion((v) => v + 1);
+    window.addEventListener(PERMISSIONS_CHANGED_EVENT, handler);
+    return () => window.removeEventListener(PERMISSIONS_CHANGED_EVENT, handler);
+  }, []);
+
   const permissions = useMemo(() => {
+    void overridesVersion;
     const role = query.data?.role;
     if (!role) return [] as Permission[];
-    return Array.from(new Set([...ROLE_PERMISSION_MAP[role], ...(query.data?.customPermissions ?? [])]));
-  }, [query.data?.customPermissions, query.data?.role]);
+    const base = Array.from(new Set([...ROLE_PERMISSION_MAP[role], ...(query.data?.customPermissions ?? [])]));
+    // تطبيق تعديلات الدور والمستخدم المخزنة (تشمل الوضع التجريبي والإنتاج)
+    return resolveUserPermissions(user?.email ?? '', role, base);
+  }, [query.data?.customPermissions, query.data?.role, user?.email, overridesVersion]);
 
   return {
     role: query.data?.role ?? null,

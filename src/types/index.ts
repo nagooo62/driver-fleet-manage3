@@ -5,8 +5,9 @@
   TablesUpdate,
 } from '@/integrations/supabase/types';
 
-export type Driver = Tables<'drivers'>;
-export type DriverInsert = TablesInsert<'drivers'>;
+/** app_id: آيدي المندوب داخل التطبيق (ToYou ID...) — account_name: اسم الحساب الإنجليزي */
+export type Driver = Tables<'drivers'> & { app_id?: string | null; account_name?: string | null };
+export type DriverInsert = TablesInsert<'drivers'> & { app_id?: string | null; account_name?: string | null };
 export type DriverUpdate = TablesUpdate<'drivers'>;
 export type DriverStatus = Driver['status'];
 
