@@ -5,6 +5,8 @@ import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  // النشر على GitHub Pages يكون تحت مسار فرعي باسم المستودع
+  base: process.env.GH_PAGES === 'true' ? '/driver-fleet-manage3/' : '/',
   server: {
     host: "::",
     port: parseInt(process.env.PORT || "8080"),

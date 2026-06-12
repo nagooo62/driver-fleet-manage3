@@ -52,7 +52,7 @@ const App = () => (
         <Toaster />
         <Sonner />
         <AppErrorBoundary>
-          <BrowserRouter>
+          <BrowserRouter basename={import.meta.env.BASE_URL}>
             <Suspense fallback={<PageLoader />}>
               <Routes>
                 <Route path="/auth" element={<PublicOnlyRoute><Auth /></PublicOnlyRoute>} />

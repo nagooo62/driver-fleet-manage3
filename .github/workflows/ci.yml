@@ -1,0 +1,81 @@
+# CI/CD — فحص الجودة عند كل push + نشر تلقائي على GitHub Pages
+name: CI & Deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ─── فحص الجودة: lint + types + tests + build ───
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: تثبيت الاعتمادات
+        run: npm ci
+
+      - name: فحص الكود (ESLint)
+        run: npm run lint
+
+      - name: فحص الأنواع (TypeScript)
+        run: npm run typecheck
+
+      - name: الاختبارات (Vitest)
+        run: npm run test
+
+      - name: بناء الإنتاج
+        run: npm run build
+
+  # ─── النشر على GitHub Pages (الوضع التجريبي الكامل) ───
+  deploy:
+    needs: quality
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: تثبيت الاعتمادات
+        run: npm ci
+
+      - name: بناء نسخة Pages (وضع تجريبي)
+        run: npm run build
+        env:
+          GH_PAGES: 'true'
+          VITE_DEMO_MODE: 'true'
+
+      - name: دعم مسارات SPA (404 fallback)
+        run: cp dist/index.html dist/404.html
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
