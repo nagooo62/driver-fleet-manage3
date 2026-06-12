@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useDrivers } from '@/hooks/useDrivers';
-import { listReports } from '@/lib/reportsArchive';
+import { listApprovedReports } from '@/lib/reportsArchive';
 import type { Driver } from '@/types';
 
 /**
@@ -32,7 +32,7 @@ export function AppsStatusReport() {
   const drivers = useMemo(() => data?.items ?? [], [data?.items]);
 
   const report = useMemo(() => {
-    const savedReports = listReports();
+    const savedReports = listApprovedReports();
 
     return APPS.map((app) => {
       const appDrivers = drivers.filter((d) => d.app_name === app.key);

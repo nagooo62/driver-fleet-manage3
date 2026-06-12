@@ -172,7 +172,8 @@ function seedDrivers(): Driver[] {
       } satisfies Driver);
     }
 
-    for (const r of data.archive.slice(0, 60)) {
+    // كل الأرشيف بدون سقف — الأعداد تطابق الشيت تماماً
+    for (const r of data.archive) {
       index++;
       if (!r.name) continue;
       drivers.push({
@@ -359,7 +360,7 @@ function decodeText(value: string) {
 }
 
 /** نسخة الزرع — ارفعها عند تغيير مصدر البيانات لإعادة الزرع تلقائياً */
-const SEED_VERSION = '4-all-apps';
+const SEED_VERSION = '5-exact-counts';
 const SEED_VERSION_KEY = 'rawaes-demo-seed-version';
 
 export function getDemoDrivers() {

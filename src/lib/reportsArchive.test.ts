@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
-  deleteReport, getReport, listReports, saveReport, searchReports,
+  aggregateReports, approveReport, deleteReport, getReport,
+  listApprovedReports, listReports, saveReport, searchReports,
   type ReportRow,
 } from './reportsArchive';
 
@@ -70,5 +71,49 @@ describe('reportsArchive', () => {
     expect(listReports()).toHaveLength(1);
     expect(getReport('toyou-2026-06-10')).toBeUndefined();
     expect(getReport('toyou-2026-06-11')).toBeDefined();
+  });
+});
+
+describe('الاعتماد والتجميع الأسبوعي/الشهري', () => {
+  beforeEach(() => localStorage.clear());
+
+  it('غير المعتمد لا يدخل في قائمة المعتمدة', () => {
+    saveReport({ ...baseReport('2026-06-10'), approved: false });
+    saveReport({ ...baseReport('2026-06-11'), approved: true });
+    const approved = listApprovedReports();
+    expect(approved).toHaveLength(1);
+    expect(approved[0].reportDate).toBe('2026-06-11');
+  });
+
+  it('approveReport يحول التقرير لمعتمد مع وقت الاعتماد', () => {
+    saveReport({ ...baseReport('2026-06-10'), approved: false });
+    const approved = approveReport('toyou-2026-06-10');
+    expect(approved?.approved).toBe(true);
+    expect(approved?.approvedAt).toBeDefined();
+    expect(listApprovedReports()).toHaveLength(1);
+  });
+
+  it('التجميع: يجمع طلبات وأيام المندوب عبر عدة تقارير ويحسب الفرق عن التارقت', () => {
+    // يومان: المندوب جاب 20 ثم 8 — التارقت 15 يومياً
+    saveReport({ ...baseReport('2026-06-10'), approved: true, rows: [row({ orders: 20 })] });
+    saveReport({ ...baseReport('2026-06-11'), approved: true, rows: [row({ orders: 8 })] });
+    const agg = aggregateReports(listApprovedReports());
+    expect(agg).toHaveLength(1);
+    expect(agg[0].days).toBe(2);
+    expect(agg[0].orders).toBe(28);
+    expect(agg[0].targetTotal).toBe(30);
+    expect(agg[0].diff).toBe(-2);          // 28 - 30 = تحت الهدف بطلبين
+    expect(agg[0].achievedPct).toBe(93);
+  });
+
+  it('التجميع يرتب تنازلياً بالفرق — المتفوق أولاً', () => {
+    saveReport({
+      ...baseReport('2026-06-10'), approved: true,
+      rows: [row({ repId: 'A', name: 'متفوق', orders: 30 }), row({ repId: 'B', name: 'متأخر', orders: 5 })],
+    });
+    const agg = aggregateReports(listApprovedReports());
+    expect(agg[0].name).toBe('متفوق');
+    expect(agg[0].diff).toBe(15);
+    expect(agg[1].diff).toBe(-10);
   });
 });
