@@ -1,73 +1,76 @@
-# Welcome to your Lovable project
+# روائس اللوجستية — نظام إدارة المناديب والمركبات
 
-## Project info
+منصة تشغيل لوجستي عربية (RTL) لإدارة مناديب التوصيل والأسطول عبر تطبيقات التوصيل
+(ToYou، هنقرستيشن، جاهز، كيتا، The Chefz) — بواجهة Glassmorphism داكنة/فاتحة.
 
-**URL**: https://lovable.dev/projects/0544956c-6abf-4e6f-b5e1-f449aa16e918
+## المزايا الرئيسية
 
-## How can I edit this code?
+| الوحدة | الوصف |
+|---|---|
+| **لوحة القيادة** | مؤشرات حية، توزيع المناديب بالتطبيق، حالة الوثائق، رسوم Recharts |
+| **المناديب** | تبويب لكل تطبيق + أرشيف، آيدي التطبيق واسم الحساب، فلاتر متقدمة، وثائق (8 أنواع) برفع ومعاينة |
+| **تقارير المناديب Pro** | استيراد ملف الأداء Excel/CSV بكشف أعمدة ذكي، مطابقة الأسماء من دليل التشغيل، تارقت وبوديوم، أرشيف يومي قابل للبحث، تصدير Excel |
+| **تقرير حالة التطبيقات** | شغالين/انتظار/متعطلين/أرشيف لكل تطبيق + تنبيهات اليوزرات الفعالة بدون طلبات |
+| **تتبع GPS** | خريطة الأسطول + تدقيق GPS مقابل الطلبات مع تسعير الكيلومترات الزائدة |
+| **الصلاحيات** | RBAC بأربعة أدوار + تعديل حي لصلاحيات الأدوار وتخصيص لمستخدم محدد |
 
-There are several ways of editing your application.
+## التقنيات
 
-**Use Lovable**
+React 18 · TypeScript · Vite · Tailwind CSS · shadcn/ui · TanStack Query · Supabase · Recharts · SheetJS
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/0544956c-6abf-4e6f-b5e1-f449aa16e918) and start prompting.
+## التشغيل
 
-Changes made via Lovable will be committed automatically to this repo.
+```bash
+# المتطلبات: Node.js 18+
+npm install
 
-**Use your preferred IDE**
+# انسخ ملف البيئة واملأ القيم
+cp .env.example .env
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+npm run dev        # التطوير على http://localhost:8080
+npm run build      # بناء الإنتاج
+npm run test       # تشغيل الاختبارات (Vitest)
+npm run lint       # فحص الكود
 ```
 
-**Edit a file directly in GitHub**
+### متغيرات البيئة
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+| المتغير | الوصف |
+|---|---|
+| `VITE_SUPABASE_URL` | رابط مشروع Supabase |
+| `VITE_SUPABASE_ANON_KEY` | المفتاح العام (anon) |
+| `VITE_DEMO_MODE` | `true` = وضع تجريبي كامل بدون باكند (بيانات حقيقية من دليل التشغيل في localStorage) |
 
-**Use GitHub Codespaces**
+**الدخول التجريبي:** `admin@rawaes.local` / `123456`
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## بنية المشروع
 
-## What technologies are used for this project?
+```
+src/
+├── pages/            # صفحات التطبيق (lazy-loaded)
+├── components/
+│   ├── layout/       # AppLayout, Topbar, SidebarNav
+│   ├── dashboard/    # MetricCard وبطاقات المؤشرات
+│   ├── reports/      # AppsStatusReport
+│   ├── gps/          # GpsOrdersAudit
+│   ├── settings/     # RolesPermissionsPanel
+│   ├── branding/     # AnimatedLogo, BrandWatermark
+│   └── ui/           # مكونات shadcn/ui
+├── hooks/            # useDrivers, useCars, useAuth, useCountUp...
+├── lib/              # rbac, permissionsStore, reportsArchive, demoMode
+├── data/             # بيانات دليل التشغيل المستخرجة (JSON)
+└── integrations/     # عميل Supabase والأنواع المولدة
+```
 
-This project is built with:
+## قاعدة البيانات
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+ملفات الهجرة في `supabase/migrations/` — تشمل جداول المناديب والسيارات والوثائق
+مع سياسات RLS وحاويات التخزين (صور المناديب/السيارات/الوثائق).
 
-## How can I deploy this project?
+## الاختبارات
 
-Simply open [Lovable](https://lovable.dev/projects/0544956c-6abf-4e6f-b5e1-f449aa16e918) and click on Share -> Publish.
+اختبارات الوحدة تغطي منطق الأعمال الحرج (أرشيف التقارير، مخزن الصلاحيات):
 
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+```bash
+npm run test
+```
