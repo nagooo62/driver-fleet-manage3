@@ -1,6 +1,9 @@
 import { useMemo } from 'react';
-import { AlertTriangle, Archive as ArchiveIcon, CheckCircle2, Clock, XCircle } from 'lucide-react';
+import * as XLSX from 'xlsx';
+import { AlertTriangle, Archive as ArchiveIcon, CheckCircle2, Clock, Download, XCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 import { useDrivers } from '@/hooks/useDrivers';
 import { listReports } from '@/lib/reportsArchive';
 import type { Driver } from '@/types';
@@ -62,13 +65,76 @@ export function AppsStatusReport() {
     });
   }, [drivers]);
 
+  /* تصدير التقرير الكامل: ورقة ملخص + ورقة تنبيهات + ورقة لكل تطبيق */
+  const handleExport = () => {
+    const wb = XLSX.utils.book_new();
+    const today = new Date().toISOString().slice(0, 10);
+
+    const summaryRows = report.map(({ app, working, waiting, disabled, archived, alerts }) => ({
+      'التطبيق': app.label,
+      'شغالين فعلياً': working.length,
+      'انتظار': waiting.length,
+      'يوزرات متعطلة': disabled.length,
+      'أرشيف': archived.length,
+      'تنبيهات بدون طلبات': alerts.length,
+    }));
+    const wsSummary = XLSX.utils.json_to_sheet(summaryRows);
+    wsSummary['!cols'] = [{ wch: 14 }, { wch: 14 }, { wch: 10 }, { wch: 14 }, { wch: 9 }, { wch: 18 }];
+    XLSX.utils.book_append_sheet(wb, wsSummary, 'ملخص التطبيقات');
+
+    const alertRows = report.flatMap(({ app, alerts }) =>
+      alerts.map(({ driver, reason }) => ({
+        'التطبيق': app.label,
+        'الاسم': driver.full_name,
+        'الآيدي': driver.app_id ?? '',
+        'المالك': driver.manager !== 'روائس' ? driver.manager : '',
+        'الجوال': driver.phone ?? '',
+        'التنبيه': reason,
+      })),
+    );
+    if (alertRows.length) {
+      const wsAlerts = XLSX.utils.json_to_sheet(alertRows);
+      wsAlerts['!cols'] = [{ wch: 12 }, { wch: 28 }, { wch: 12 }, { wch: 24 }, { wch: 13 }, { wch: 50 }];
+      XLSX.utils.book_append_sheet(wb, wsAlerts, 'تنبيهات بدون طلبات');
+    }
+
+    for (const { app, working, waiting, disabled, archived } of report) {
+      const list = [
+        ...working.map((d) => ({ d, الحالة: 'شغال فعلياً' })),
+        ...waiting.map((d) => ({ d, الحالة: 'انتظار' })),
+        ...disabled.map((d) => ({ d, الحالة: 'متعطل' })),
+        ...archived.map((d) => ({ d, الحالة: 'أرشيف' })),
+      ].map(({ d, الحالة }) => ({
+        'الاسم': d.full_name,
+        'اسم الحساب': d.account_name ?? '',
+        'الآيدي': d.app_id ?? '',
+        'الجوال': d.phone ?? '',
+        'المدينة': d.city ?? '',
+        'المالك/المشرف': d.manager ?? '',
+        'الحالة': الحالة,
+      }));
+      if (!list.length) continue;
+      const ws = XLSX.utils.json_to_sheet(list);
+      ws['!cols'] = [{ wch: 28 }, { wch: 26 }, { wch: 12 }, { wch: 13 }, { wch: 16 }, { wch: 24 }, { wch: 12 }];
+      XLSX.utils.book_append_sheet(wb, ws, app.label.slice(0, 30));
+    }
+
+    XLSX.writeFile(wb, `تقرير-حالة-التطبيقات-${today}.xlsx`);
+    toast.success('تم تصدير تقرير حالة التطبيقات');
+  };
+
   return (
     <section className="glass-panel space-y-5 p-6">
-      <div>
-        <h2 className="text-xl font-semibold text-white">تقرير حالة التطبيقات</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          أعداد المناديب من دليل التشغيل — التنبيهات تُحسب بمطابقة آخر تقرير أداء محفوظ لكل تطبيق
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-semibold text-white">تقرير حالة التطبيقات</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            أعداد المناديب من دليل التشغيل — التنبيهات تُحسب بمطابقة آخر تقرير أداء محفوظ لكل تطبيق
+          </p>
+        </div>
+        <Button variant="outline" onClick={handleExport} className="press-effect gap-2">
+          <Download className="h-4 w-4" /> تصدير التقرير Excel
+        </Button>
       </div>
 
       {/* بطاقات الأعداد لكل تطبيق */}

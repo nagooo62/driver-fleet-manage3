@@ -31,8 +31,11 @@ export function useAppDistribution() {
     queryFn: async (): Promise<AppDistribution[]> => {
       if (DEMO_MODE) {
         const counts: Record<string, number> = {};
+        // الفعالون فقط — الأرشيف لا يدخل في توزيع التطبيقات
         getDemoDrivers().forEach((driver) => {
-          if (driver.app_name) counts[driver.app_name] = (counts[driver.app_name] ?? 0) + 1;
+          if (driver.app_name && driver.status !== 'archived') {
+            counts[driver.app_name] = (counts[driver.app_name] ?? 0) + 1;
+          }
         });
 
         return Object.entries(APP_META).map(([key, meta]) => ({
