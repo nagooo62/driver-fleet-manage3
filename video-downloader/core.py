@@ -11,6 +11,20 @@ except Exception:
     FFMPEG = None  # لو عندك ffmpeg في النظام يشتغل برضو
 
 BEST, AUDIO = "best", "audio"
+
+
+def _find_impersonate():
+    """يختار هوية متصفح Chrome لو مكتبة curl_cffi متوفرة (تحلّ كثيراً من أخطاء 403/410 مع المواقع المحمية)."""
+    try:
+        with yt_dlp.YoutubeDL({"quiet": True}) as y:
+            targets = [t for t, _ in y._get_available_impersonate_targets()]
+        chrome = [t for t in targets if getattr(t, "client", None) == "chrome"]
+        return (chrome or targets or [None])[0]
+    except Exception:
+        return None
+
+
+IMPERSONATE = _find_impersonate()
 AUDIO_KEYS = ("a_best", "mp3_320", "mp3_192", "mp3_128", "m4a", "flac", "wav", "audio")
 
 
@@ -27,7 +41,7 @@ def friendly_error(msg):
     tip = ""
     if "http error 410" in low or "http error 404" in low or "video unavailable" in low or "has been removed" in low:
         tip = (" ← الفيديو محذوف، أو الموقع يرفض الطلبات (حظر دولة/شبكة). افتح الرابط في المتصفح: لو لا يفتح فجرّب VPN أو بروكسي من الإعدادات،"
-               " ولو يفتح فجرّب «كوكيز من المتصفح» ثم «تحديث yt-dlp».")
+               " ولو يفتح فجرّب «كوكيز من المتصفح» ثم «تحديث yt-dlp». وتأكد في الإعدادات أن «انتحال المتصفح» ✔.")
     elif any(s in low for s in ("sign in", "log in", "login required", "private", "cookies", "age-restricted",
                                 "confirm your age", "age verification")):
         tip = " ← جرّب خيار «كوكيز من المتصفح» في الإعدادات (وكن مسجّل دخول في ذلك المتصفح)."
@@ -68,6 +82,8 @@ def fetch_info(url, browser="", proxy=""):
         opts["cookiesfrombrowser"] = (browser,)
     if proxy:
         opts["proxy"] = proxy
+    if IMPERSONATE:
+        opts["impersonate"] = IMPERSONATE
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(url, download=False)
     if info.get("_type") == "playlist":
@@ -160,6 +176,8 @@ def build_opts(key, folder, hook=None, opts=None):
         o["cookiesfrombrowser"] = (opts["browser"],)
     if opts.get("proxy"):
         o["proxy"] = opts["proxy"]
+    if IMPERSONATE:
+        o["impersonate"] = IMPERSONATE
     if opts.get("container") in ("mp4", "mkv", "webm"):
         o["merge_output_format"] = opts["container"]
     st, en = float(opts.get("start") or 0), float(opts.get("end") or 0)
@@ -206,6 +224,8 @@ def search(query, source="youtube", n=12, browser="", proxy=""):
         opts["cookiesfrombrowser"] = (browser,)
     if proxy:
         opts["proxy"] = proxy
+    if IMPERSONATE:
+        opts["impersonate"] = IMPERSONATE
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(f"{prefix}{int(n)}:{query}", download=False)
     out = []

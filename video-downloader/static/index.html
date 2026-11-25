@@ -428,11 +428,11 @@ $("#openFolder").onclick=()=>api("open",{}).catch(e=>toast(e.message,true));
 function applyTheme(t){const r=document.documentElement;if(t==="auto")r.removeAttribute("data-theme");else r.setAttribute("data-theme",t);try{localStorage.setItem("theme",t);}catch{}}
 try{applyTheme(localStorage.getItem("theme")||"auto");}catch{}
 async function loadSettings(){
-  const {settings:s,version,ffmpeg}=await api("settings");
+  const {settings:s,version,ffmpeg,impersonate}=await api("settings");
   $("#sFolder").value=s.folder;$("#sConc").value=s.concurrent;$("#sRate").value=s.rate_kb;$("#sBrowser").value=s.browser;$("#sProxy").value=s.proxy||"";$("#sContainer").value=s.container||"mp4";$("#sSort").checked=!!s.sort_folders;
   try{$("#sTheme").value=localStorage.getItem("theme")||"auto";}catch{}
   $("#subs").checked=!!s.subs;$("#folderHint").textContent="الحفظ في: "+s.folder;
-  $("#ver").textContent="yt-dlp "+version+(ffmpeg?" · ffmpeg ✔":" · ffmpeg غير موجود ✖");
+  $("#ver").textContent="yt-dlp "+version+(ffmpeg?" · ffmpeg ✔":" · ffmpeg غير موجود ✖")+(impersonate?" · انتحال المتصفح ✔":" · انتحال المتصفح ✖ (نفّذ run.bat ليثبّت curl_cffi)");
 }
 $("#openSettings").onclick=async()=>{await loadSettings();$("#dlg").showModal();};
 $("#closeSet").onclick=()=>$("#dlg").close();

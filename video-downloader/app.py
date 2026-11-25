@@ -293,7 +293,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, {"jobs": M.snapshot()})
         if self.path == "/api/settings":
             return self._send(200, {"settings": M.settings, "version": yt_dlp.version.__version__,
-                                    "ffmpeg": bool(core.FFMPEG)})
+                                    "ffmpeg": bool(core.FFMPEG), "impersonate": bool(core.IMPERSONATE)})
         if self.path == "/api/ping":
             return self._send(200, {"ok": True})
         self._send(404, {"error": "not found"})
