@@ -26,7 +26,8 @@ def friendly_error(msg):
     low = msg.lower()
     tip = ""
     if "http error 410" in low or "http error 404" in low or "video unavailable" in low or "has been removed" in low:
-        tip = " ← الفيديو محذوف أو الرابط انتهت صلاحيته. افتح الرابط في المتصفح وتأكد أنه يعمل، وانسخ رابط صفحة الفيديو نفسه."
+        tip = (" ← الفيديو محذوف، أو الموقع يرفض الطلبات (حظر دولة/شبكة). افتح الرابط في المتصفح: لو لا يفتح فجرّب VPN أو بروكسي من الإعدادات،"
+               " ولو يفتح فجرّب «كوكيز من المتصفح» ثم «تحديث yt-dlp».")
     elif any(s in low for s in ("sign in", "log in", "login required", "private", "cookies", "age-restricted",
                                 "confirm your age", "age verification")):
         tip = " ← جرّب خيار «كوكيز من المتصفح» في الإعدادات (وكن مسجّل دخول في ذلك المتصفح)."
