@@ -8,6 +8,7 @@ import subprocess
 import sys
 import threading
 import time
+import traceback
 import uuid
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -24,9 +25,10 @@ import core  # noqa: E402
 STATE_FILE = os.path.join(APP_DIR, "state.json")
 TOKEN = secrets.token_urlsafe(24)
 IDLE_EXIT_SECONDS = 150
+RETRY_MAX = 4  # عدد محاولات التحميل التلقائية عند انقطاع مؤقت
 DEFAULTS = {"folder": os.path.join(os.path.expanduser("~"), "Downloads", "VideoDownloader"),
             "concurrent": 2, "rate_kb": 0, "browser": "", "subs": False,
-            "proxy": "", "sort_folders": True, "container": "mp4"}
+            "proxy": "", "sort_folders": True, "container": "mp4", "connections": 8}
 
 
 def resource(rel):
@@ -34,10 +36,20 @@ def resource(rel):
     return os.path.join(base, rel)
 
 
+def log_error(jid, url, err):
+    try:
+        with open(os.path.join(APP_DIR, "errors.log"), "a", encoding="utf-8") as f:
+            f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {jid} {url}\n{err}\n\n")
+    except OSError:
+        pass
+
+
 class Manager:
+    ACTIVE = ("queued", "downloading", "processing")
+
     def __init__(self):
         self.lock = threading.RLock()
-        self.jobs, self.cancel = {}, {}
+        self.jobs, self.cancel, self.parts = {}, {}, {}
         self.settings = dict(DEFAULTS)
         self.sem = threading.Semaphore(2)
         self.last_ping = time.time()
@@ -50,7 +62,9 @@ class Manager:
                 data = json.load(f)
             self.settings.update(data.get("settings", {}))
             for j in data.get("jobs", []):
-                if j.get("status") in ("done", "error", "canceled"):
+                if j.get("status") in self.ACTIVE:  # كان شغّالاً عند الإغلاق -> يصير متوقفاً ويمكن استئنافه
+                    j.update(status="paused", speed=0, eta=0, note="أُوقف عند إغلاق البرنامج — اضغط «استئناف» ليكمل")
+                if j.get("status") in ("done", "error", "canceled", "paused") and j.get("_s") is not None:
                     self.jobs[j["id"]] = j
         except Exception:
             pass
@@ -58,11 +72,11 @@ class Manager:
 
     def save(self):
         with self.lock:
-            data = {"settings": self.settings,
-                    "jobs": [j for j in self.jobs.values() if j["status"] in ("done", "error", "canceled")][-200:]}
+            data = {"settings": self.settings, "jobs": list(self.jobs.values())[-200:]}
+            blob = json.dumps(data, ensure_ascii=False, default=list)
         tmp = STATE_FILE + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False)
+            f.write(blob)
         os.replace(tmp, STATE_FILE)
 
     # ---- الإعدادات ----
@@ -79,6 +93,7 @@ class Manager:
                         v = str(v).strip()
                     self.settings[k] = v
             self.settings["concurrent"] = min(6, max(1, self.settings["concurrent"]))
+            self.settings["connections"] = min(16, max(1, self.settings["connections"] or 8))
             if self.settings["container"] not in ("mp4", "mkv", "webm"):
                 self.settings["container"] = "mp4"
             if self.settings["browser"] not in ("", "chrome", "edge", "firefox", "brave", "opera"):
@@ -100,16 +115,16 @@ class Manager:
             sub = ("Audio" if str(key) in core.AUDIO_KEYS else "Video") if s.get("sort_folders") else ""
             folder = os.path.join(s["folder"], sub) if sub else s["folder"]
             for it in items:
-                u = it["url"]
                 jid = uuid.uuid4().hex[:10]
-                label = core.key_label(key)
-                self.jobs[jid] = {"id": jid, "url": u, "index": it.get("index"), "title": it.get("title") or u,
-                                  "thumb": it.get("thumb") or "", "key": key,
-                                  "label": label, "status": "queued", "pct": 0, "speed": 0, "eta": 0,
-                                  "file": "", "size": 0, "error": "", "created": time.time(), "folder": folder}
-                self.cancel[jid] = threading.Event()
-                threading.Thread(target=self._run, args=(jid, dict(s, playlist_item=it.get("index"))), daemon=True).start()
+                self.jobs[jid] = {"id": jid, "url": it["url"], "index": it.get("index"),
+                                  "title": it.get("title") or it["url"], "thumb": it.get("thumb") or "",
+                                  "key": key, "label": core.key_label(key), "status": "queued", "pct": 0,
+                                  "speed": 0, "eta": 0, "file": "", "size": 0, "error": "", "note": "",
+                                  "created": time.time(), "folder": folder,
+                                  "_s": dict(s, playlist_item=it.get("index")), "_parts": [], "_mode": ""}
                 ids.append(jid)
+        for jid in ids:
+            self._start(jid)
         return ids
 
     def _set(self, jid, **kw):
@@ -117,18 +132,84 @@ class Manager:
             if jid in self.jobs:
                 self.jobs[jid].update(kw)
 
-    def _run(self, jid, s):
-        ev, sem = self.cancel[jid], self.sem
-        with sem:
-            if ev.is_set():
-                self._set(jid, status="canceled")
+    def _start(self, jid):
+        self.cancel[jid] = threading.Event()
+        threading.Thread(target=self._run, args=(jid,), daemon=True).start()
+
+    # إيقاف مؤقت (يحتفظ بالجزء المحمّل) أو إلغاء (يحذف الجزء المحمّل)
+    def stop(self, jid, mode):
+        with self.lock:
+            j = self.jobs.get(jid)
+            if not j:
                 return
-            self._set(jid, status="downloading")
+            st = j["status"]
+            if st in ("queued", "downloading"):
+                j["_mode"] = mode
+                self.cancel[jid].set()
+                return
+            idle_cancel = mode == "cancel" and st in ("paused", "error")
+        if idle_cancel:
+            self._cleanup(jid)
+            self._set(jid, status="canceled", pct=0, speed=0, eta=0, note="", error="")
+            self.save()
+
+    def resume(self, jid):
+        with self.lock:
+            j = self.jobs.get(jid)
+            if not j or j["status"] not in ("paused", "error", "canceled"):
+                return False
+            if j["status"] == "canceled":
+                j["pct"] = 0
+            j.update(status="queued", error="", note="", speed=0, eta=0, _mode="")
+        self._start(jid)
+        return True
+
+    def _cleanup(self, jid):
+        """يحذف الملفات الجزئية (.part/.ytdl) لهذه المهمة فقط وداخل مجلدها."""
+        with self.lock:
+            j = self.jobs.get(jid)
+            if not j:
+                return
+            files = set(j.get("_parts") or []) | self.parts.get(jid, set())
+            root = os.path.abspath(j["folder"])
+        for p in files:
+            for cand in (p, p + ".part", p + ".ytdl"):
+                try:
+                    if os.path.abspath(cand).startswith(root) and os.path.isfile(cand):
+                        os.remove(cand)
+                except OSError:
+                    pass
+        self._set(jid, _parts=[])
+        self.parts.pop(jid, None)
+
+    def _finish_stop(self, jid):
+        mode = self.jobs[jid].get("_mode") or "cancel"
+        if mode == "pause":
+            self._set(jid, status="paused", speed=0, eta=0, note="متوقف مؤقتاً — الجزء المحمّل محفوظ، اضغط «استئناف»")
+        else:
+            self._cleanup(jid)
+            self._set(jid, status="canceled", pct=0, speed=0, eta=0, note="")
+
+    def _run(self, jid):
+        ev = self.cancel[jid]
+        with self.lock:
+            j = self.jobs[jid]
+            s, url, key, folder = dict(j["_s"]), j["url"], j["key"], j["folder"]
+            parts = self.parts.setdefault(jid, set(j.get("_parts") or []))
+        with self.sem:
+            if ev.is_set():
+                self._finish_stop(jid)
+                self.save()
+                return
+            self._set(jid, status="downloading", error="", note="")
             state = {"done": 0}
 
             def hook(d):
                 if ev.is_set():
                     raise yt_dlp.utils.DownloadCancelled()
+                fn = d.get("tmpfilename") or d.get("filename")
+                if fn:
+                    parts.add(fn)
                 info = d.get("info_dict") or {}
                 if info.get("title") and self.jobs[jid]["title"] == self.jobs[jid]["url"]:
                     self._set(jid, title=info["title"], thumb=self.jobs[jid]["thumb"] or info.get("thumbnail") or "")
@@ -136,33 +217,53 @@ class Manager:
                 if d["status"] == "downloading":
                     total = d.get("total_bytes") or d.get("total_bytes_estimate") or 0
                     frac = (d.get("downloaded_bytes") or 0) / total if total else 0
-                    self._set(jid, status="downloading", pct=min(99.0, (state["done"] + frac) / n * 100),
+                    self._set(jid, status="downloading", note="", pct=min(99.0, (state["done"] + frac) / n * 100),
                               speed=d.get("speed") or 0, eta=d.get("eta") or 0)
                 elif d["status"] == "finished":
                     state["done"] += 1
                     if state["done"] >= n:
                         self._set(jid, status="processing", pct=100, speed=0, eta=0)
 
-            try:
-                path = core.download(self.jobs[jid]["url"], self.jobs[jid]["key"], self.jobs[jid]["folder"], hook, s)
-                size = os.path.getsize(path) if path and os.path.exists(path) else 0
-                self._set(jid, status="done", pct=100, speed=0, eta=0, file=path, size=size)
-            except yt_dlp.utils.DownloadCancelled:
-                self._set(jid, status="canceled", speed=0, eta=0)
-            except Exception as e:  # noqa: BLE001
-                if ev.is_set():
-                    self._set(jid, status="canceled", speed=0, eta=0)
-                else:
-                    self._set(jid, status="error", error=core.friendly_error(e), speed=0, eta=0)
+            attempt = 0
+            while True:
+                attempt += 1
+                state["done"] = 0
+                try:
+                    path = core.download(url, key, folder, hook, s)
+                    size = os.path.getsize(path) if path and os.path.exists(path) else 0
+                    self._set(jid, status="done", pct=100, speed=0, eta=0, file=path, size=size, note="")
+                    parts.clear()
+                    break
+                except yt_dlp.utils.DownloadCancelled:
+                    self._finish_stop(jid)
+                    break
+                except Exception as e:  # noqa: BLE001
+                    if ev.is_set():
+                        self._finish_stop(jid)
+                        break
+                    log_error(jid, url, traceback.format_exc())
+                    started = self.jobs[jid]["pct"] > 0
+                    if attempt < RETRY_MAX and core.is_retryable(e, started):
+                        self._set(jid, status="downloading", speed=0, eta=0,
+                                  note=f"انقطع الاتصال — إعادة المحاولة {attempt}/{RETRY_MAX - 1} (يكمل من نفس النقطة)...")
+                        if ev.wait(min(5 * attempt, 20)):
+                            self._finish_stop(jid)
+                            break
+                        continue
+                    msg = core.friendly_error(e) + (" — الجزء المحمّل محفوظ، اضغط «استئناف» ليكمل من نفس النقطة." if started else "")
+                    self._set(jid, status="error", error=msg, speed=0, eta=0, note="")
+                    break
+            self._set(jid, _parts=sorted(parts))
         self.save()
 
     def active(self):
         with self.lock:
-            return any(j["status"] in ("queued", "downloading", "processing") for j in self.jobs.values())
+            return any(j["status"] in self.ACTIVE for j in self.jobs.values())
 
     def snapshot(self):
         with self.lock:
-            return sorted((dict(j) for j in self.jobs.values()), key=lambda j: -j["created"])
+            return sorted(({k: v for k, v in j.items() if not k.startswith("_")} for j in self.jobs.values()),
+                          key=lambda j: -j["created"])
 
 
 M = Manager()
@@ -344,11 +445,11 @@ class Handler(BaseHTTPRequestHandler):
                         return self._send(400, {"error": "وقت القص غير صحيح"})
                     extra = {"start": st, "end": en}
                 return self._send(200, {"ids": M.add(items, key, body.get("subs"), extra)})
-            if route == "cancel":
-                ev = M.cancel.get(body.get("id"))
-                if ev:
-                    ev.set()
+            if route in ("cancel", "pause"):
+                M.stop(body.get("id"), route)
                 return self._send(200, {"ok": True})
+            if route == "resume":
+                return self._send(200, {"ok": M.resume(body.get("id"))})
             if route == "remove":
                 with M.lock:
                     j = M.jobs.get(body.get("id"))
@@ -358,7 +459,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, {"ok": True})
             if route == "clear":
                 with M.lock:
-                    M.jobs = {k: v for k, v in M.jobs.items() if v["status"] in ("queued", "downloading", "processing")}
+                    M.jobs = {k: v for k, v in M.jobs.items() if v["status"] in ("queued", "downloading", "processing", "paused")}
                 M.save()
                 return self._send(200, {"ok": True})
             if route == "settings":

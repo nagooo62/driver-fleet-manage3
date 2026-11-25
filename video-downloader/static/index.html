@@ -95,6 +95,8 @@ label.chk{display:flex;gap:6px;align-items:center;color:var(--muted);cursor:poin
 .job.done .bar i{background:var(--ok)} .job.error .bar i,.job.canceled .bar i{background:var(--err)}
 .j-status{font-size:13px}
 .done .j-status{color:var(--ok);font-weight:600} .error .j-status{color:var(--err)} .canceled .j-status{color:var(--warn)}
+.job.paused .bar i{background:var(--warn)} .paused .j-status{color:var(--warn);font-weight:600}
+.j-note{color:var(--muted);font-size:12.5px;margin-top:2px}
 .j-err{color:var(--err);font-size:12.5px;overflow-wrap:anywhere;margin-top:4px}
 .j-actions{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-top:6px;padding-top:10px;border-top:1px solid var(--line)}
 .j-actions:not(:has(.btn:not(.hidden))){display:none}
@@ -208,6 +210,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
   <h2 style="margin-top:0">الإعدادات</h2>
   <div class="f"><label>مجلد الحفظ</label><input type="text" id="sFolder" dir="ltr"></div>
   <div class="f"><label>عدد التحميلات المتزامنة</label><input type="number" id="sConc" min="1" max="6"></div>
+  <div class="f"><label>عدد الاتصالات المتوازية لكل تحميل (1–16): أكثر = أسرع في البث المقسّم (HLS/DASH)</label><input type="number" id="sConn" min="1" max="16"></div>
   <div class="f"><label>حدّ السرعة (كيلوبايت/ثانية، 0 = بدون حد)</label><input type="number" id="sRate" min="0"></div>
   <div class="f"><label>كوكيز من المتصفح (للمحتوى الخاص أو المقيّد بالعمر)</label>
     <select id="sBrowser"><option value="">بدون</option><option>chrome</option><option>edge</option><option>firefox</option><option>brave</option><option>opera</option></select></div>
@@ -373,39 +376,43 @@ $("#urls").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey&&parse
 
 // ---------- قائمة التحميلات ----------
 const els=new Map();
-const STAT={queued:"في الانتظار",downloading:"جاري التحميل",processing:"جاري الدمج والمعالجة...",done:"تم التحميل ✔",error:"فشل",canceled:"أُلغي"};
+const STAT={queued:"في الانتظار",downloading:"جاري التحميل",processing:"جاري الدمج والمعالجة...",done:"تم التحميل ✔",error:"فشل",canceled:"أُلغي",paused:"متوقف مؤقتاً ⏸"};
 function mkJob(j){
   const d=document.createElement("div");d.className="job";
-  d.innerHTML='<img alt="" referrerpolicy="no-referrer"><div><div class="j-title"></div><div class="j-meta"><span class="badge"></span><span class="m-sp"></span></div><div class="bar"><i></i></div><div class="j-status"></div><div class="j-err"></div></div><div class="j-actions"></div>';
+  d.innerHTML='<img alt="" referrerpolicy="no-referrer"><div><div class="j-title"></div><div class="j-meta"><span class="badge"></span><span class="m-sp"></span></div><div class="bar"><i></i></div><div class="j-status"></div><div class="j-note"></div><div class="j-err"></div></div><div class="j-actions"></div>';
   const act=d.querySelector(".j-actions");
   const mk=(t,cls,fn)=>{const b=document.createElement("button");b.className="btn sm "+cls;b.textContent=t;b.onclick=fn;act.append(b);return b;};
+  const call=(p)=>api(p,{id:j.id}).then(refresh).catch(e=>toast(e.message,true));
   const open=mode=>api("open",{id:j.id,mode}).catch(e=>toast(e.message,true));
   d._play=mk("▶ فتح الملف","primary",()=>open("file"));
   d._folder=mk("📂 فتح المجلد","",()=>open("folder"));
   d._player=mk("🎞 تشغيل هنا","",()=>openPlayer(j.id,d._title,d._audio));
-  d._cancel=mk("⏸ إيقاف","danger",()=>api("cancel",{id:j.id}).then(refresh));
-  d._retry=mk("↻ استئناف / إعادة","",()=>{api("download",{items:[{url:d._url,index:d._index}],key:d._key}).then(()=>api("remove",{id:j.id})).then(refresh);});
+  d._pause=mk("⏸ إيقاف مؤقت","",()=>call("pause"));
+  d._resume=mk("▶ استئناف","primary",()=>call("resume"));
+  d._restart=mk("↻ إعادة التحميل","",()=>call("resume"));
+  d._cancel=mk("✖ إلغاء","danger",()=>{if(confirm("إلغاء التحميل وحذف الجزء المحمّل؟"))call("cancel");});
+  d._copy=mk("📋 نسخ الخطأ","",()=>navigator.clipboard.writeText((d._err||"")+"\n"+d._url).then(()=>toast("تم نسخ الخطأ ✔")).catch(()=>toast("تعذّر النسخ",true)));
   d._rm=mk("🗑 حذف من القائمة","",()=>api("remove",{id:j.id}).then(refresh));
   d.querySelector("img").onerror=e=>e.target.style.visibility="hidden";
   return d;
 }
 function upd(d,j){
-  d._url=j.url;d._key=j.key;d._index=j.index;d._title=j.title;d._audio=/^(a_best|mp3_|m4a|flac|wav|audio)/.test(String(j.key));
+  d._url=j.url;d._key=j.key;d._index=j.index;d._title=j.title;d._err=j.error;d._audio=/^(a_best|mp3_|m4a|flac|wav|audio)/.test(String(j.key));
   d.className="job "+j.status;
   const im=d.querySelector("img");if(j.thumb&&im.getAttribute("src")!==j.thumb){im.src=j.thumb;im.style.visibility="visible";}
   d.querySelector(".j-title").textContent=j.title;
   d.querySelector(".badge").textContent=j.label;
   d.querySelector(".m-sp").textContent=j.status==="done"?fmtSize(j.size):[fmtSpeed(j.speed),fmtEta(j.eta)].filter(Boolean).join(" · ");
   d.querySelector(".bar i").style.width=(j.status==="done"?100:j.pct)+"%";
-  d.querySelector(".j-status").textContent=(STAT[j.status]||j.status)+(j.status==="downloading"?" "+Math.round(j.pct)+"%":"");
+  d.querySelector(".j-status").textContent=(STAT[j.status]||j.status)+((j.status==="downloading"||j.status==="paused")&&j.pct?" "+Math.round(j.pct)+"%":"");
+  d.querySelector(".j-note").textContent=j.note||"";
   d.querySelector(".j-err").textContent=j.error||"";
-  const active=["queued","downloading","processing"].includes(j.status);
-  d._cancel.classList.toggle("hidden",!active||j.status==="processing");
-  d._play.classList.toggle("hidden",j.status!=="done");
-  d._folder.classList.toggle("hidden",j.status!=="done");
-  d._player.classList.toggle("hidden",j.status!=="done");
-  d._retry.classList.toggle("hidden",!["error","canceled"].includes(j.status));
-  d._rm.classList.toggle("hidden",active);
+  const st=j.status,run=st==="queued"||st==="downloading";
+  const show=(el,on)=>el.classList.toggle("hidden",!on);
+  show(d._play,st==="done");show(d._folder,st==="done");show(d._player,st==="done");
+  show(d._pause,run);show(d._resume,st==="paused"||st==="error");show(d._restart,st==="canceled");
+  show(d._cancel,run||st==="paused"||st==="error");show(d._copy,st==="error");
+  show(d._rm,st!=="queued"&&st!=="downloading"&&st!=="processing"&&st!=="paused");
 }
 async function refresh(){
   try{
@@ -429,7 +436,7 @@ function applyTheme(t){const r=document.documentElement;if(t==="auto")r.removeAt
 try{applyTheme(localStorage.getItem("theme")||"auto");}catch{}
 async function loadSettings(){
   const {settings:s,version,ffmpeg,impersonate}=await api("settings");
-  $("#sFolder").value=s.folder;$("#sConc").value=s.concurrent;$("#sRate").value=s.rate_kb;$("#sBrowser").value=s.browser;$("#sProxy").value=s.proxy||"";$("#sContainer").value=s.container||"mp4";$("#sSort").checked=!!s.sort_folders;
+  $("#sFolder").value=s.folder;$("#sConc").value=s.concurrent;$("#sRate").value=s.rate_kb;$("#sConn").value=s.connections||8;$("#sBrowser").value=s.browser;$("#sProxy").value=s.proxy||"";$("#sContainer").value=s.container||"mp4";$("#sSort").checked=!!s.sort_folders;
   try{$("#sTheme").value=localStorage.getItem("theme")||"auto";}catch{}
   $("#subs").checked=!!s.subs;$("#folderHint").textContent="الحفظ في: "+s.folder;
   $("#ver").textContent="yt-dlp "+version+(ffmpeg?" · ffmpeg ✔":" · ffmpeg غير موجود ✖")+(impersonate?" · انتحال المتصفح ✔":" · انتحال المتصفح ✖ (نفّذ run.bat ليثبّت curl_cffi)");
@@ -438,7 +445,7 @@ $("#openSettings").onclick=async()=>{await loadSettings();$("#dlg").showModal();
 $("#closeSet").onclick=()=>$("#dlg").close();
 $("#saveSet").onclick=async()=>{
   try{
-    await api("settings",{folder:$("#sFolder").value,concurrent:+$("#sConc").value||2,rate_kb:+$("#sRate").value||0,browser:$("#sBrowser").value,proxy:$("#sProxy").value,container:$("#sContainer").value,sort_folders:$("#sSort").checked,subs:$("#subs").checked});
+    await api("settings",{folder:$("#sFolder").value,concurrent:+$("#sConc").value||2,rate_kb:+$("#sRate").value||0,connections:+$("#sConn").value||8,browser:$("#sBrowser").value,proxy:$("#sProxy").value,container:$("#sContainer").value,sort_folders:$("#sSort").checked,subs:$("#subs").checked});
     applyTheme($("#sTheme").value);await loadSettings();$("#dlg").close();toast("تم الحفظ ✔");
   }catch(e){toast(e.message,true);}
 };

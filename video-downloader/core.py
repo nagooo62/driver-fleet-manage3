@@ -45,6 +45,10 @@ def friendly_error(msg):
     elif any(s in low for s in ("sign in", "log in", "login required", "private", "cookies", "age-restricted",
                                 "confirm your age", "age verification")):
         tip = " ← جرّب خيار «كوكيز من المتصفح» في الإعدادات (وكن مسجّل دخول في ذلك المتصفح)."
+    elif "winerror 32" in low or "being used by another process" in low or "permission denied" in low:
+        tip = " ← الملف مفتوح في برنامج آخر (مشغّل أو مضاد فيروسات). أغلقه ثم اضغط «استئناف»."
+    elif "no space left" in low or "winerror 112" in low:
+        tip = " ← لا توجد مساحة كافية على القرص."
     elif "unsupported url" in low:
         tip = " ← هذا الرابط غير مدعوم أو ليس رابط فيديو مباشر."
     elif "ffmpeg" in low:
@@ -54,6 +58,23 @@ def friendly_error(msg):
     elif any(s in low for s in ("urlopen", "getaddrinfo", "timed out", "network", "connection")):
         tip = " ← تأكد من اتصال الإنترنت."
     return msg[-500:] + tip
+
+
+_RETRY = ("timed out", "timeout", "connection", "incomplete", "reset", "broken pipe", "remote end closed",
+          "unexpected eof", "read error", "did not get any data", "ssl", "http error 5", "http error 429",
+          "http error 403", "temporarily", "unreachable", "getaddrinfo", "urlopen error", "transporterror")
+_NO_RETRY = ("unsupported url", "private video", "sign in", "log in", "http error 404", "http error 410", "drm",
+             "video unavailable", "has been removed", "ffmpeg exited", "no space left", "permission denied", "winerror")
+
+
+def is_retryable(msg, started=False):
+    """هل الخطأ مؤقت (شبكة/انتهاء رابط) فيستحق إعادة المحاولة تلقائياً مع الاستكمال؟"""
+    low = str(msg).lower()
+    if any(s in low for s in _NO_RETRY):
+        return False
+    if ("http error 403" in low or "http error 429" in low) and not started:
+        return False  # حظر من البداية: لن تفيد الإعادة
+    return any(s in low for s in _RETRY)
 
 
 def _size_text(n):
@@ -166,9 +187,10 @@ def build_opts(key, folder, hook=None, opts=None):
         "quiet": True, "no_warnings": True, "noprogress": True,
         "merge_output_format": "mp4",
         "format_sort": ["res", "ext:mp4:m4a"],  # يفضّل mp4 عشان يشتغل على أي مشغّل
-        "retries": 10, "fragment_retries": 10,
-        "concurrent_fragment_downloads": 4,
-        "postprocessors": [{"key": "FFmpegMetadata"}],
+        "retries": 15, "fragment_retries": 25, "extractor_retries": 5, "file_access_retries": 10,
+        "socket_timeout": 30, "continuedl": True,
+        "concurrent_fragment_downloads": max(1, min(16, int(opts.get("connections") or 8))),
+        "postprocessors": [],
     }
     if FFMPEG:
         o["ffmpeg_location"] = FFMPEG
