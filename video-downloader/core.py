@@ -1,6 +1,10 @@
 """منطق التحميل (بدون واجهة) - يعتمد على yt-dlp."""
+import ipaddress
 import os
 import re
+import socket
+import urllib.request
+from urllib.parse import urlsplit
 
 import yt_dlp
 
@@ -11,6 +15,19 @@ except Exception:
     FFMPEG = None  # لو عندك ffmpeg في النظام يشتغل برضو
 
 BEST, AUDIO = "best", "audio"
+
+
+def system_proxy(url):
+    """بروكسي النظام (ويندوز/متغيرات البيئة) لهذا الرابط. مهم: curl_cffi لا يقرأه تلقائياً بعكس urllib،
+    فنمرّره صراحة كي يمر البرنامج من نفس الـ VPN/البروكسي الذي يستخدمه المتصفح."""
+    try:
+        if urllib.request.proxy_bypass(urlsplit(url).hostname or ""):
+            return ""
+        px = urllib.request.getproxies()
+        val = px.get("https") or px.get("http") or ""
+        return val if val.startswith(("http://", "https://")) else ""
+    except Exception:
+        return ""
 
 
 def _find_impersonate():
@@ -56,6 +73,10 @@ def friendly_error(msg):
         tip = " ← هذا الرابط غير مدعوم أو ليس رابط فيديو مباشر."
     elif "ffmpeg" in low:
         tip = " ← مشكلة في ffmpeg، أعد تشغيل البرنامج."
+    elif any(s in low for s in ("connection was reset", "recv failure", "curl: (56)", "curl: (35)", "curl: (28)",
+                                 "curl: (7)", "connection refused", "connection aborted")):
+        tip = (" ← الاتصال بالموقع يُقطع من الشبكة (غالباً حجب من مزوّد الإنترنت، أو الـ VPN لا يشمل البرنامج)."
+               " شغّل VPN على كامل الجهاز، أو ضع بروكسي الـ VPN في الإعدادات، ثم اضغط «فحص الاتصال».")
     elif "http error 403" in low or "http error 429" in low:
         tip = " ← الموقع يحظر الطلبات حالياً. حدّث yt-dlp من الإعدادات أو جرّب لاحقاً."
     elif any(s in low for s in ("urlopen", "getaddrinfo", "timed out", "network", "connection")):
@@ -100,6 +121,7 @@ def _fsize(f, dur=0):
 
 def fetch_info(url, browser="", proxy="", cookiefile=""):
     """يجلب معلومات الرابط بدون تحميل. يرجّع dict جاهز للواجهة."""
+    proxy = proxy or system_proxy(url)
     opts = {"quiet": True, "no_warnings": True, "noplaylist": True,
             "extract_flat": "in_playlist", "skip_download": True}
     if browser:
@@ -248,6 +270,7 @@ def build_opts(key, folder, hook=None, opts=None):
 def search(query, source="youtube", n=12, browser="", proxy="", cookiefile=""):
     """بحث داخل المواقع (يوتيوب / ساوند كلاود) بدون فتح المتصفح."""
     prefix = {"youtube": "ytsearch", "soundcloud": "scsearch"}.get(source, "ytsearch")
+    proxy = proxy or system_proxy("https://www.youtube.com")
     opts = {"quiet": True, "no_warnings": True, "extract_flat": True, "skip_download": True}
     if browser:
         opts["cookiesfrombrowser"] = (browser,)
@@ -287,6 +310,77 @@ def _final_path(info):
 def download(url, key, folder, hook=None, opts=None):
     """ينزّل ويرجّع مسار الملف النهائي."""
     os.makedirs(folder, exist_ok=True)
+    opts = dict(opts or {})
+    if not opts.get("proxy"):
+        opts["proxy"] = system_proxy(url)
     with yt_dlp.YoutubeDL(build_opts(key, folder, hook, opts)) as ydl:
         info = ydl.extract_info(url, download=True)
     return _final_path(info)
+
+
+def diagnose(url, proxy=""):
+    """يفحص لماذا لا يتصل البرنامج بالموقع: DNS، ثم اتصال HTTPS بالموقع، ثم موقع محايد للمقارنة."""
+    from yt_dlp.networking.exceptions import HTTPError, TransportError
+    host = urlsplit(url).hostname or ""
+    px = proxy or system_proxy(url)
+    base = os.environ.get("VD_DIAG_BASELINE") or "https://www.cloudflare.com/cdn-cgi/trace"
+    res = {"proxy": px, "host": host, "checks": [], "summary": ""}
+
+    def add(name, state, detail):  # state: ok | warn | fail
+        res["checks"].append({"name": name, "state": state, "detail": detail})
+
+    def fetch(u):
+        o = {"quiet": True, "no_warnings": True, "socket_timeout": 15}
+        if px:
+            o["proxy"] = px
+        if IMPERSONATE:
+            o["impersonate"] = IMPERSONATE
+        with yt_dlp.YoutubeDL(o) as y:
+            r = y.urlopen(u)
+            return r.status, r.read(2000).decode("utf-8", "ignore")
+
+    dns_bad = False
+    try:
+        ipaddress.ip_address(host)
+        add("DNS", "ok", "الرابط عنوان IP مباشر (بدون DNS)")
+    except ValueError:
+        try:
+            ips = sorted({r[4][0] for r in socket.getaddrinfo(host, 443, proto=socket.IPPROTO_TCP)})
+            dns_bad = any(i.startswith(("0.", "127.", "10.", "192.168.", "169.254.")) or i == "::1" for i in ips)
+            add("DNS", "fail" if dns_bad else "ok",
+                ", ".join(ips[:3]) + ("  ← عنوان مشبوه (حجب عبر DNS)" if dns_bad else ""))
+        except OSError as err:
+            add("DNS", "fail", f"تعذّر تحويل اسم الموقع: {str(err)[:60]}")
+            dns_bad = True
+
+    def probe(name, u):
+        try:
+            code, body = fetch(u)
+            add(name, "ok", f"HTTP {code}")
+            return "ok", body
+        except HTTPError as e:
+            add(name, "warn", f"الموقع ردّ HTTP {e.status} (وصلنا للخادم، لكنه رفض أو عرض صفحة حجب)")
+            return "http", ""
+        except TransportError as e:
+            add(name, "fail", f"انقطع الاتصال: {str(e)[:110]}")
+            return "net", ""
+        except Exception as e:  # noqa: BLE001
+            add(name, "fail", str(e)[:110])
+            return "net", ""
+
+    t_state, _ = probe("الاتصال بالموقع", url if url.startswith("http") else f"https://{host}/")
+    b_state, body = probe("اتصال محايد للمقارنة", base)
+    m = dict(re.findall(r"^(ip|loc)=(.+)$", body, re.M))
+    if m:
+        add("عنوانك العام", "ok", f"{m.get('ip', '?')}  (الدولة: {m.get('loc', '?')})")
+
+    if b_state == "net":
+        res["summary"] = "لا يوجد اتصال بالإنترنت عبر البرنامج، أو البروكسي المضبوط لا يعمل. تأكد من الشبكة/الـ VPN."
+    elif t_state == "net" or dns_bad:
+        res["summary"] = ("الإنترنت يعمل لكن **الموقع محجوب أو مقطوع من شبكتك** (غالباً من مزوّد الإنترنت). "
+                          "شغّل VPN يغطي كامل الجهاز (وليس إضافة متصفح فقط)، أو ضع بروكسي الـ VPN في الإعدادات، ثم أعد الفحص.")
+    elif t_state == "http":
+        res["summary"] = "وصلنا للموقع لكنه رفض الطلب (حظر دولة أو فحص حماية). جرّب ملف كوكيز أو تثبيت PhantomJS من الإعدادات."
+    else:
+        res["summary"] = "الاتصال بالموقع سليم من ناحية الشبكة. لو لا يزال التحميل يفشل فالمشكلة في الموقع نفسه، أرسل لي الخطأ."
+    return res

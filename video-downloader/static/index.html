@@ -201,6 +201,12 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
   <div class="empty" id="empty">لا توجد تحميلات بعد. الصق رابطاً في الأعلى وابدأ.</div>
 </div>
 
+<dialog id="diagDlg">
+  <h2 style="margin-top:0">🩺 فحص الاتصال</h2>
+  <div id="diagOut" class="hint" style="white-space:pre-wrap;line-height:1.9"></div>
+  <div class="row"><button class="btn" id="diagClose">إغلاق</button></div>
+</dialog>
+
 <dialog id="player">
   <div class="row" style="margin:0 0 10px"><b id="playerTitle" style="flex:1;overflow-wrap:anywhere"></b><button class="btn sm" id="playerClose">✖ إغلاق</button></div>
   <div id="playerBox"></div>
@@ -227,6 +233,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
     <button class="btn" id="closeSet">إغلاق</button>
     <button class="btn" id="upd">تحديث yt-dlp</button>
     <button class="btn" id="instPhantom">تثبيت PhantomJS</button>
+    <button class="btn" id="diagBtn">🩺 فحص الاتصال</button>
   </div>
 </dialog>
 
@@ -394,6 +401,7 @@ function mkJob(j){
   d._restart=mk("↻ إعادة التحميل","",()=>call("resume"));
   d._cancel=mk("✖ إلغاء","danger",()=>{if(confirm("إلغاء التحميل وحذف الجزء المحمّل؟"))call("cancel");});
   d._copy=mk("📋 نسخ الخطأ","",()=>navigator.clipboard.writeText((d._err||"")+"\n"+d._url).then(()=>toast("تم نسخ الخطأ ✔")).catch(()=>toast("تعذّر النسخ",true)));
+  d._diag=mk("🩺 فحص الاتصال","",()=>runDiag(d._url));
   d._rm=mk("🗑 حذف من القائمة","",()=>api("remove",{id:j.id}).then(refresh));
   d.querySelector("img").onerror=e=>e.target.style.visibility="hidden";
   return d;
@@ -413,7 +421,7 @@ function upd(d,j){
   const show=(el,on)=>el.classList.toggle("hidden",!on);
   show(d._play,st==="done");show(d._folder,st==="done");show(d._player,st==="done");
   show(d._pause,run);show(d._resume,st==="paused"||st==="error");show(d._restart,st==="canceled");
-  show(d._cancel,run||st==="paused"||st==="error");show(d._copy,st==="error");
+  show(d._cancel,run||st==="paused"||st==="error");show(d._copy,st==="error");show(d._diag,st==="error");
   show(d._rm,st!=="queued"&&st!=="downloading"&&st!=="processing"&&st!=="paused");
 }
 async function refresh(){
@@ -437,11 +445,11 @@ $("#openFolder").onclick=()=>api("open",{}).catch(e=>toast(e.message,true));
 function applyTheme(t){const r=document.documentElement;if(t==="auto")r.removeAttribute("data-theme");else r.setAttribute("data-theme",t);try{localStorage.setItem("theme",t);}catch{}}
 try{applyTheme(localStorage.getItem("theme")||"auto");}catch{}
 async function loadSettings(){
-  const {settings:s,version,ffmpeg,impersonate,phantomjs}=await api("settings");
+  const {settings:s,version,ffmpeg,impersonate,phantomjs,system_proxy}=await api("settings");
   $("#sFolder").value=s.folder;$("#sConc").value=s.concurrent;$("#sRate").value=s.rate_kb;$("#sConn").value=s.connections||8;$("#sBrowser").value=s.browser;$("#sProxy").value=s.proxy||"";$("#sContainer").value=s.container||"mp4";$("#sSort").checked=!!s.sort_folders;
   try{$("#sTheme").value=localStorage.getItem("theme")||"auto";}catch{}
   $("#subs").checked=!!s.subs;$("#folderHint").textContent="الحفظ في: "+s.folder;
-  $("#ver").textContent="yt-dlp "+version+(ffmpeg?" · ffmpeg ✔":" · ffmpeg غير موجود ✖")+(impersonate?" · انتحال المتصفح ✔":" · انتحال المتصفح ✖ (نفّذ run.bat ليثبّت curl_cffi)")+(phantomjs?" · PhantomJS ✔":" · PhantomJS ✖");
+  $("#ver").textContent="yt-dlp "+version+(ffmpeg?" · ffmpeg ✔":" · ffmpeg غير موجود ✖")+(impersonate?" · انتحال المتصفح ✔":" · انتحال المتصفح ✖ (نفّذ run.bat ليثبّت curl_cffi)")+(phantomjs?" · PhantomJS ✔":" · PhantomJS ✖")+(system_proxy?" · بروكسي النظام: "+system_proxy:" · بروكسي النظام: لا يوجد");
   $("#instPhantom").classList.toggle("hidden",!!phantomjs);$("#sCookie").value=s.cookiefile||"";
 }
 $("#openSettings").onclick=async()=>{await loadSettings();$("#dlg").showModal();};
@@ -456,6 +464,17 @@ $("#subs").onchange=()=>api("settings",{subs:$("#subs").checked}).catch(()=>{});
 $("#instPhantom").onclick=async()=>{const b=$("#instPhantom");b.disabled=true;b.textContent="جاري التنزيل (18 MB)...";
   try{toast((await api("install-phantomjs",{})).message);await loadSettings();}catch(e){toast(e.message,true);}
   b.disabled=false;b.textContent="تثبيت PhantomJS";};
+async function runDiag(url){
+  if(!url){toast("الصق رابط الموقع في المربع أولاً",true);return;}
+  const out=$("#diagOut");out.textContent="جاري الفحص... (قد يأخذ حتى نصف دقيقة)";$("#diagDlg").showModal();
+  try{
+    const r=await api("diagnose",{url});
+    const ic={ok:"✅",warn:"⚠️",fail:"❌"};
+    out.textContent=r.checks.map(c=>ic[c.state]+" "+c.name+": "+c.detail).join("\n")+"\n"+(r.proxy?"🔀 البروكسي المستخدم: "+r.proxy+"\n":"")+"\n"+r.summary.replace(/\*\*/g,"");
+  }catch(e){out.textContent="تعذّر الفحص: "+e.message;}
+}
+$("#diagBtn").onclick=()=>runDiag(parseUrls()[0]||"");
+$("#diagClose").onclick=()=>$("#diagDlg").close();
 $("#upd").onclick=async()=>{const b=$("#upd");b.disabled=true;b.textContent="جاري التحديث...";
   try{toast((await api("update",{})).message);}catch(e){toast(e.message,true);}
   b.disabled=false;b.textContent="تحديث yt-dlp";};

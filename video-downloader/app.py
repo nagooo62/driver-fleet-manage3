@@ -437,7 +437,8 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/api/settings":
             return self._send(200, {"settings": M.settings, "version": yt_dlp.version.__version__,
                                     "ffmpeg": bool(core.FFMPEG), "impersonate": bool(core.IMPERSONATE),
-                                    "phantomjs": bool(shutil.which("phantomjs"))})
+                                    "phantomjs": bool(shutil.which("phantomjs")),
+                                    "system_proxy": core.system_proxy("https://example.com")})
         if self.path == "/api/ping":
             return self._send(200, {"ok": True})
         self._send(404, {"error": "not found"})
@@ -512,6 +513,11 @@ class Handler(BaseHTTPRequestHandler):
             if route == "open":
                 open_path(body.get("id"), "file" if body.get("mode") == "file" else "folder")
                 return self._send(200, {"ok": True})
+            if route == "diagnose":
+                u = valid_urls([body.get("url")])
+                if not u:
+                    return self._send(400, {"error": "الصق رابطاً صالحاً أولاً"})
+                return self._send(200, core.diagnose(u[0], M.settings["proxy"]))
             if route == "install-phantomjs":
                 return self._send(200, {"message": install_phantomjs()})
             if route == "update":
