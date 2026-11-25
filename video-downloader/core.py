@@ -57,8 +57,8 @@ def friendly_error(msg):
     low = msg.lower()
     tip = ""
     if "phantomjs" in low:
-        tip = (" ← الموقع يعرض فحص حماية يحتاج أداة PhantomJS: افتح الإعدادات واضغط «تثبيت PhantomJS» (مرة واحدة)،"
-               " أو ضع ملف كوكيز (cookies.txt) من متصفحك في الإعدادات.")
+        tip = (" ← الموقع يعرض فحص حماية يحتاج أداة PhantomJS: افتح الإعدادات، وانظر سطر الحالة (PhantomJS ✔ أو ✖ مع السبب)،"
+               " واضغط «تثبيت PhantomJS» إن لزم. وبديلها: ملف كوكيز (cookies.txt) من متصفحك.")
     elif "http error 410" in low or "http error 404" in low or "video unavailable" in low or "has been removed" in low:
         tip = (" ← الفيديو محذوف، أو الموقع يرفض الطلبات (حظر دولة/شبكة). افتح الرابط في المتصفح: لو لا يفتح فجرّب VPN أو بروكسي من الإعدادات،"
                " ولو يفتح فجرّب «كوكيز من المتصفح» ثم «تحديث yt-dlp». وتأكد في الإعدادات أن «انتحال المتصفح» ✔.")

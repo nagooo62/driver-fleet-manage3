@@ -45,7 +45,7 @@ DEFAULTS = {"folder": os.path.join(os.path.expanduser("~"), "Downloads", "VideoD
             "cookiefile": ""}
 
 
-UI_VERSION = 6  # رقم إصدار الواجهة المطلوب (index.html يحمل meta ui-version)
+UI_VERSION = 7  # رقم إصدار الواجهة المطلوب (index.html يحمل meta ui-version)
 
 
 def _ui_candidates():
@@ -348,6 +348,24 @@ def open_path(jid=None, mode="folder"):
         subprocess.Popen(["xdg-open", folder])
 
 
+def phantom_status():
+    """يفحص PhantomJS فعلياً: هل هو موجود في PATH، وهل يشتغل (phantomjs -v)؟"""
+    exe = shutil.which("phantomjs")
+    if not exe:
+        here = [n for n in ("phantomjs.exe", "phantomjs") if os.path.isfile(os.path.join(TOOLS_DIR, n))]
+        return {"found": False, "detail": "الملف موجود في مجلد الأدوات لكن النظام لا يراه، أعد تشغيل البرنامج" if here else "غير مثبّت"}
+    try:
+        r = subprocess.run([exe, "-v"], capture_output=True, text=True, timeout=15)
+    except Exception as e:  # noqa: BLE001
+        return {"found": False, "detail": f"موجود لكن لا يعمل: {str(e)[:80]}"}
+    if r.returncode == 0:
+        return {"found": True, "detail": (r.stdout or "").strip()[:20] or "يعمل"}
+    code = r.returncode & 0xFFFFFFFF
+    hint = (" — غالباً ينقصه Microsoft Visual C++ 2013 (x86): نزّله من https://aka.ms/highdpimfc2013x86enu وثبّته"
+            if code in (0xC0000135, 0xC000007B) else "")
+    return {"found": False, "detail": f"موجود لكنه لا يعمل (رمز الخروج {code:#x}){hint}"}
+
+
 def install_phantomjs():
     """ينزّل PhantomJS (ويندوز) بعد التحقق من البصمة، ويضعه في مجلد الأدوات."""
     if not IS_WIN:
@@ -476,9 +494,10 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/api/jobs":
             return self._send(200, {"jobs": M.snapshot()})
         if self.path == "/api/settings":
+            ps = phantom_status()
             return self._send(200, {"settings": M.settings, "version": yt_dlp.version.__version__,
                                     "ffmpeg": bool(core.FFMPEG), "impersonate": bool(core.IMPERSONATE),
-                                    "phantomjs": bool(shutil.which("phantomjs")),
+                                    "phantomjs": ps["found"], "phantomjs_detail": ps["detail"],
                                     "system_proxy": core.system_proxy("https://example.com")})
         if self.path == "/api/ping":
             return self._send(200, {"ok": True})
