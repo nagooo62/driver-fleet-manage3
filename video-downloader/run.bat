@@ -1,3 +1,4 @@
 @echo off
-pip install -r requirements.txt
+chcp 65001 >nul
+pip install -q -r requirements.txt
 python app.py
