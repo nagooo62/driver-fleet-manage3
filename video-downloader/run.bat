@@ -1,6 +1,6 @@
 @echo off
 cd /d "%~dp0"
-echo [1/3] Checking Python...
+echo [1/4] Checking Python...
 set PY=python
 python --version >nul 2>&1 || set PY=py
 %PY% --version
@@ -11,7 +11,7 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
-echo [2/3] Installing libraries (first run takes 1-2 minutes)...
+echo [2/4] Installing required libraries (first run takes 1-2 minutes)...
 %PY% -m pip install -r requirements.txt
 if errorlevel 1 (
   echo.
@@ -19,8 +19,11 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
-echo [3/3] Starting... a window will open. Keep this black window open while using the app.
+echo [3/4] Installing optional browser-impersonation support (fine if it fails)...
+%PY% -m pip install -q "yt-dlp[curl-cffi]"
+if errorlevel 1 echo Optional component not installed. The app still works without it.
+echo [4/4] Starting... a window will open. Keep this black window open while using the app.
 %PY% app.py
 echo.
-echo The app stopped. See messages above.
+echo The app stopped. See the messages above.
 pause
