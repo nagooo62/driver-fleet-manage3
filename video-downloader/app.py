@@ -84,20 +84,22 @@ class Manager:
         self.save()
 
     # ---- المهام ----
-    def add(self, urls, key, title="", thumb="", subs=None):
+    def add(self, items, key, subs=None):
         ids = []
         with self.lock:
             s = dict(self.settings)
             if subs is not None:
                 s["subs"] = bool(subs)
-            for u in urls:
+            for it in items:
+                u = it["url"]
                 jid = uuid.uuid4().hex[:10]
                 label = core.key_label(key)
-                self.jobs[jid] = {"id": jid, "url": u, "title": title or u, "thumb": thumb, "key": key,
+                self.jobs[jid] = {"id": jid, "url": u, "index": it.get("index"), "title": it.get("title") or u,
+                                  "thumb": it.get("thumb") or "", "key": key,
                                   "label": label, "status": "queued", "pct": 0, "speed": 0, "eta": 0,
                                   "file": "", "size": 0, "error": "", "created": time.time(), "folder": s["folder"]}
                 self.cancel[jid] = threading.Event()
-                threading.Thread(target=self._run, args=(jid, s), daemon=True).start()
+                threading.Thread(target=self._run, args=(jid, dict(s, playlist_item=it.get("index"))), daemon=True).start()
                 ids.append(jid)
         return ids
 
@@ -254,15 +256,23 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(400, {"error": "رابط غير صالح"})
                 return self._send(200, core.fetch_info(urls[0], M.settings["browser"]))
             if route == "download":
-                urls = valid_urls(body.get("urls"))
                 key = body.get("key", "best")
                 if key not in ("best", *core.AUDIO_KEYS):
                     key = int(key)
-                if not urls:
+                raw = body.get("items")
+                if not isinstance(raw, list):  # توافق: قائمة روابط فقط
+                    raw = [{"url": u} for u in valid_urls(body.get("urls"))]
+                items = []
+                for it in raw[:500]:
+                    if not isinstance(it, dict) or not valid_urls([it.get("url")]):
+                        continue
+                    idx = it.get("index")
+                    items.append({"url": it["url"].strip(), "index": int(idx) if idx else None,
+                                  "title": str(it.get("title") or "")[:300],
+                                  "thumb": str(it.get("thumb") or "")[:1000]})
+                if not items:
                     return self._send(400, {"error": "لا توجد روابط صالحة"})
-                ids = M.add(urls, key, str(body.get("title") or "")[:300], str(body.get("thumb") or "")[:1000],
-                            body.get("subs"))
-                return self._send(200, {"ids": ids})
+                return self._send(200, {"ids": M.add(items, key, body.get("subs"))})
             if route == "cancel":
                 ev = M.cancel.get(body.get("id"))
                 if ev:

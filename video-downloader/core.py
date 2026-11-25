@@ -48,6 +48,14 @@ def _size_text(n):
     return f"{n:.1f} TB"
 
 
+def _fsize(f, dur=0):
+    """حجم الصيغة: الفعلي إن وُجد، وإلا تقدير من معدل البت × المدة."""
+    n = f.get("filesize") or f.get("filesize_approx") or 0
+    if not n and dur and f.get("tbr"):
+        n = f["tbr"] * 125 * dur
+    return int(n)
+
+
 def fetch_info(url, browser=""):
     """يجلب معلومات الرابط بدون تحميل. يرجّع dict جاهز للواجهة."""
     opts = {"quiet": True, "no_warnings": True, "noplaylist": True,
@@ -57,60 +65,71 @@ def fetch_info(url, browser=""):
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(url, download=False)
     if info.get("_type") == "playlist":
-        urls = []
-        for e in info.get("entries") or []:
+        items = []
+        for i, e in enumerate(info.get("entries") or [], start=1):
             if not e:
                 continue
-            u = e.get("webpage_url") or e.get("url")
-            if u and u.startswith("http"):
-                urls.append(u)
+            own = e.get("webpage_url") or e.get("url") or ""
+            thumbs = e.get("thumbnails") or []
+            items.append({
+                # لو العنصر له رابط خاص نستخدمه، وإلا نحمّله بترتيبه داخل القائمة
+                "url": own if own.startswith("http") and own != url else url,
+                "index": None if own.startswith("http") and own != url else i,
+                "title": e.get("title") or f"عنصر {i}",
+                "duration": e.get("duration") or 0,
+                "thumbnail": e.get("thumbnail") or (thumbs[-1].get("url") if thumbs else "") or "",
+            })
         return {"type": "playlist", "title": info.get("title") or "قائمة تشغيل",
-                "count": len(urls), "urls": urls, "uploader": info.get("uploader") or "",
+                "count": len(items), "items": items, "uploader": info.get("uploader") or "",
                 "thumbnail": ""}
+    dur = info.get("duration") or 0
     return {"type": "video", "title": info.get("title") or url,
-            "thumbnail": info.get("thumbnail") or "", "duration": info.get("duration") or 0,
+            "thumbnail": info.get("thumbnail") or "", "duration": dur,
             "uploader": info.get("uploader") or info.get("channel") or "",
-            "qualities": [{"label": l, "key": k} for l, k in list_qualities(info) if k != AUDIO],
-            "audio": audio_options(info)}
+            "qualities": list_qualities(info), "audio": audio_options(info)}
 
 
 def list_qualities(info):
-    """قائمة (النص، المفتاح): 'best' أو ارتفاع الفيديو، وفي آخرها 'audio'."""
+    """جودات الفيديو المتاحة فعلاً: [{label, key, size}] وأولها 'أعلى جودة'."""
     formats = info.get("formats") or []
-    audio_sizes = [f.get("filesize") or f.get("filesize_approx") or 0
-                   for f in formats if f.get("vcodec") == "none" and f.get("acodec") != "none"]
-    best_audio = max(audio_sizes, default=0)
-    by_height = {}  # h -> [أكبر حجم، أعلى fps]
+    dur = info.get("duration") or 0
+    audio_only = [f for f in formats if f.get("vcodec") == "none" and f.get("acodec") != "none"]
+    best_audio = max((_fsize(f, dur) for f in audio_only), default=0)
+    by_height = {}  # h -> [أكبر حجم، أعلى fps، فيه صوت؟]
     for f in formats:
         h = f.get("height")
         if f.get("vcodec") in (None, "none") or not h:
             continue
-        size = f.get("filesize") or f.get("filesize_approx") or 0
-        cur = by_height.setdefault(h, [0, 0])
-        cur[0] = max(cur[0], size)
+        cur = by_height.setdefault(h, [0, 0, False])
+        cur[0] = max(cur[0], _fsize(f, dur))
         cur[1] = max(cur[1], f.get("fps") or 0)
+        cur[2] = cur[2] or f.get("acodec") not in (None, "none")
     heights = sorted(by_height, reverse=True)
-    items = [(f"أعلى جودة متاحة ({heights[0]}p)" if heights else "أعلى جودة متاحة", BEST)]
+    items = []
     for h in heights:
-        size, fps = by_height[h]
-        has_audio = any(f.get("height") == h and f.get("acodec") not in (None, "none") for f in formats)
-        total = size + (0 if has_audio else best_audio)
-        label = f"{h}p" + (f"{int(fps)}" if fps and fps > 30 else "")
-        items.append((label + (f"  ·  {_size_text(total)}" if total else ""), h))
-    items.append(("صوت فقط (MP3)", AUDIO))
+        size, fps, has_audio = by_height[h]
+        total = size + (0 if has_audio or not size else best_audio)
+        items.append({"label": f"{h}p" + (f"{int(fps)}" if fps and fps > 30 else ""),
+                      "key": h, "size": total})
+    top = items[0] if items else None
+    items.insert(0, {"label": f"أعلى جودة متاحة ({heights[0]}p)" if heights else "أعلى جودة متاحة",
+                     "key": BEST, "size": top["size"] if top else 0})
     return items
 
 
 def audio_options(info):
-    """خيارات جودة الصوت: الأصلي بدون تحويل، أو MP3 بعدة جودات."""
-    abrs = [f.get("abr") or 0 for f in (info.get("formats") or [])
-            if f.get("vcodec") == "none" and f.get("acodec") not in (None, "none")]
-    top = max(abrs, default=0)
+    """خيارات جودة الصوت مع الحجم: الأصلي بدون تحويل، أو MP3 بعدة جودات."""
+    dur = info.get("duration") or 0
+    af = [f for f in (info.get("formats") or [])
+          if f.get("vcodec") == "none" and f.get("acodec") not in (None, "none")]
+    top = max((f.get("abr") or 0 for f in af), default=0)
+    orig_size = max((_fsize(f, dur) for f in af), default=0) or int(top * 125 * dur)
     orig = "أعلى جودة صوت أصلية" + (f"  ·  ~{int(top)} kbps" if top else "") + "  (بدون تحويل)"
-    return [{"label": orig, "key": "a_best"},
-            {"label": "MP3  ·  320 kbps", "key": "mp3_320"},
-            {"label": "MP3  ·  192 kbps", "key": "mp3_192"},
-            {"label": "MP3  ·  128 kbps", "key": "mp3_128"}]
+    mp3 = lambda k: int(dur * k * 125)  # noqa: E731  (kbps -> bytes)
+    return [{"label": orig, "key": "a_best", "size": orig_size},
+            {"label": "MP3  ·  320 kbps", "key": "mp3_320", "size": mp3(320)},
+            {"label": "MP3  ·  192 kbps", "key": "mp3_192", "size": mp3(192)},
+            {"label": "MP3  ·  128 kbps", "key": "mp3_128", "size": mp3(128)}]
 
 
 def build_opts(key, folder, hook=None, opts=None):
@@ -130,6 +149,9 @@ def build_opts(key, folder, hook=None, opts=None):
         o["ffmpeg_location"] = FFMPEG
     if opts.get("browser"):
         o["cookiesfrombrowser"] = (opts["browser"],)
+    if opts.get("playlist_item"):  # عنصر واحد من قائمة/ألبوم حسب ترتيبه
+        o["noplaylist"] = False
+        o["playlist_items"] = str(int(opts["playlist_item"]))
     if int(opts.get("rate_kb") or 0) > 0:
         o["ratelimit"] = int(opts["rate_kb"]) * 1024
     if opts.get("subs"):
@@ -152,10 +174,19 @@ def build_opts(key, folder, hook=None, opts=None):
     return o
 
 
+def _final_path(info):
+    reqs = info.get("requested_downloads") or []
+    if reqs:
+        return reqs[0].get("filepath") or ""
+    for e in info.get("entries") or []:
+        if e and _final_path(e):
+            return _final_path(e)
+    return ""
+
+
 def download(url, key, folder, hook=None, opts=None):
     """ينزّل ويرجّع مسار الملف النهائي."""
     os.makedirs(folder, exist_ok=True)
     with yt_dlp.YoutubeDL(build_opts(key, folder, hook, opts)) as ydl:
         info = ydl.extract_info(url, download=True)
-    reqs = info.get("requested_downloads") or []
-    return (reqs[0].get("filepath") if reqs else None) or ""
+    return _final_path(info)
