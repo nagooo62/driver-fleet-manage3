@@ -1,16 +1,21 @@
 """محمّل الفيديوهات - يشتغل محلياً على جهازك: خادم صغير + واجهة تفتح كنافذة تطبيق."""
+import hashlib
+import io
 import json
 import mimetypes
 import os
 import secrets
+import shutil
 import socket
 import subprocess
 import sys
 import threading
 import time
 import traceback
+import urllib.request
 import uuid
 import webbrowser
+import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
@@ -23,12 +28,20 @@ import yt_dlp  # noqa: E402
 import core  # noqa: E402
 
 STATE_FILE = os.path.join(APP_DIR, "state.json")
+TOOLS_DIR = os.path.join(APP_DIR, "tools")  # أدوات مساعدة (مثل phantomjs) تُضاف تلقائياً إلى PATH
+os.makedirs(TOOLS_DIR, exist_ok=True)
+os.environ["PATH"] = TOOLS_DIR + os.pathsep + os.environ.get("PATH", "")
+PHANTOM_URLS = ["https://github.com/Medium/phantomjs/releases/download/v2.1.1/phantomjs-2.1.1-windows.zip",
+                "https://bitbucket.org/ariya/phantomjs/downloads/phantomjs-2.1.1-windows.zip"]
+IS_WIN = sys.platform.startswith("win")
+PHANTOM_SHA256 = "d9fb05623d6b26d3654d008eab3adafd1f6350433dfd16138c46161f42c7dcc8"  # نفس البصمة من مصدرين مستقلين
 TOKEN = secrets.token_urlsafe(24)
 IDLE_EXIT_SECONDS = 150
 RETRY_MAX = 4  # عدد محاولات التحميل التلقائية عند انقطاع مؤقت
 DEFAULTS = {"folder": os.path.join(os.path.expanduser("~"), "Downloads", "VideoDownloader"),
             "concurrent": 2, "rate_kb": 0, "browser": "", "subs": False,
-            "proxy": "", "sort_folders": True, "container": "mp4", "connections": 8}
+            "proxy": "", "sort_folders": True, "container": "mp4", "connections": 8,
+            "cookiefile": ""}
 
 
 def resource(rel):
@@ -293,6 +306,35 @@ def open_path(jid=None, mode="folder"):
         subprocess.Popen(["xdg-open", folder])
 
 
+def install_phantomjs():
+    """ينزّل PhantomJS (ويندوز) بعد التحقق من البصمة، ويضعه في مجلد الأدوات."""
+    if not IS_WIN:
+        raise RuntimeError("التثبيت التلقائي لويندوز فقط. على لينكس/ماك ثبّت phantomjs من مدير الحزم.")
+    urls = os.environ.get("VD_PHANTOM_URLS", "").split() or PHANTOM_URLS
+    want = os.environ.get("VD_PHANTOM_SHA256") or PHANTOM_SHA256
+    px = M.settings.get("proxy") or ""
+    opener = urllib.request.build_opener(
+        urllib.request.ProxyHandler({"http": px, "https": px}) if px.startswith("http") else urllib.request.ProxyHandler())
+    last = "unknown"
+    for u in urls:
+        try:
+            req = urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0"})
+            with opener.open(req, timeout=90) as r:
+                data = r.read(60_000_000)
+            if hashlib.sha256(data).hexdigest() != want:
+                last = "البصمة لا تطابق (تم رفض الملف)"
+                continue
+            tmp = os.path.join(TOOLS_DIR, "phantomjs.exe.tmp")
+            with zipfile.ZipFile(io.BytesIO(data)) as z, z.open("phantomjs-2.1.1-windows/bin/phantomjs.exe") as src, \
+                    open(tmp, "wb") as dst:
+                shutil.copyfileobj(src, dst)
+            os.replace(tmp, os.path.join(TOOLS_DIR, "phantomjs.exe"))
+            return "تم تثبيت PhantomJS ✔ — أعد المحاولة مع الرابط."
+        except Exception as e:  # noqa: BLE001
+            last = str(e)
+    raise RuntimeError(f"تعذّر تنزيل PhantomJS ({last[:100]}). جرّب VPN أو بروكسي في الإعدادات ثم أعد المحاولة.")
+
+
 def update_ytdlp():
     if getattr(sys, "frozen", False):
         raise RuntimeError("هذه نسخة exe مدمجة. لتحديث yt-dlp أعد بناء البرنامج بـ build_exe.bat")
@@ -394,7 +436,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, {"jobs": M.snapshot()})
         if self.path == "/api/settings":
             return self._send(200, {"settings": M.settings, "version": yt_dlp.version.__version__,
-                                    "ffmpeg": bool(core.FFMPEG), "impersonate": bool(core.IMPERSONATE)})
+                                    "ffmpeg": bool(core.FFMPEG), "impersonate": bool(core.IMPERSONATE),
+                                    "phantomjs": bool(shutil.which("phantomjs"))})
         if self.path == "/api/ping":
             return self._send(200, {"ok": True})
         self._send(404, {"error": "not found"})
@@ -413,13 +456,14 @@ class Handler(BaseHTTPRequestHandler):
                 urls = valid_urls([body.get("url")])
                 if not urls:
                     return self._send(400, {"error": "رابط غير صالح"})
-                return self._send(200, core.fetch_info(urls[0], M.settings["browser"], M.settings["proxy"]))
+                return self._send(200, core.fetch_info(urls[0], M.settings["browser"], M.settings["proxy"], M.settings["cookiefile"]))
             if route == "search":
                 q = str(body.get("q") or "").strip()[:200]
                 if not q:
                     return self._send(400, {"error": "اكتب كلمة البحث"})
                 return self._send(200, {"results": core.search(q, body.get("source", "youtube"), 12,
-                                                               M.settings["browser"], M.settings["proxy"])})
+                                                               M.settings["browser"], M.settings["proxy"],
+                                                               M.settings["cookiefile"])})
             if route == "download":
                 key = body.get("key", "best")
                 if key not in ("best", *core.AUDIO_KEYS):
@@ -468,6 +512,8 @@ class Handler(BaseHTTPRequestHandler):
             if route == "open":
                 open_path(body.get("id"), "file" if body.get("mode") == "file" else "folder")
                 return self._send(200, {"ok": True})
+            if route == "install-phantomjs":
+                return self._send(200, {"message": install_phantomjs()})
             if route == "update":
                 return self._send(200, {"message": update_ytdlp()})
             self._send(404, {"error": "not found"})

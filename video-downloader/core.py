@@ -39,7 +39,10 @@ def friendly_error(msg):
     msg = ANSI.sub("", str(msg)).replace("ERROR: ", "").strip()
     low = msg.lower()
     tip = ""
-    if "http error 410" in low or "http error 404" in low or "video unavailable" in low or "has been removed" in low:
+    if "phantomjs" in low:
+        tip = (" ← الموقع يعرض فحص حماية يحتاج أداة PhantomJS: افتح الإعدادات واضغط «تثبيت PhantomJS» (مرة واحدة)،"
+               " أو ضع ملف كوكيز (cookies.txt) من متصفحك في الإعدادات.")
+    elif "http error 410" in low or "http error 404" in low or "video unavailable" in low or "has been removed" in low:
         tip = (" ← الفيديو محذوف، أو الموقع يرفض الطلبات (حظر دولة/شبكة). افتح الرابط في المتصفح: لو لا يفتح فجرّب VPN أو بروكسي من الإعدادات،"
                " ولو يفتح فجرّب «كوكيز من المتصفح» ثم «تحديث yt-dlp». وتأكد في الإعدادات أن «انتحال المتصفح» ✔.")
     elif any(s in low for s in ("sign in", "log in", "login required", "private", "cookies", "age-restricted",
@@ -95,7 +98,7 @@ def _fsize(f, dur=0):
     return int(n)
 
 
-def fetch_info(url, browser="", proxy=""):
+def fetch_info(url, browser="", proxy="", cookiefile=""):
     """يجلب معلومات الرابط بدون تحميل. يرجّع dict جاهز للواجهة."""
     opts = {"quiet": True, "no_warnings": True, "noplaylist": True,
             "extract_flat": "in_playlist", "skip_download": True}
@@ -103,6 +106,8 @@ def fetch_info(url, browser="", proxy=""):
         opts["cookiesfrombrowser"] = (browser,)
     if proxy:
         opts["proxy"] = proxy
+    if cookiefile and os.path.isfile(cookiefile):
+        opts["cookiefile"] = cookiefile
     if IMPERSONATE:
         opts["impersonate"] = IMPERSONATE
     with yt_dlp.YoutubeDL(opts) as ydl:
@@ -198,6 +203,8 @@ def build_opts(key, folder, hook=None, opts=None):
         o["cookiesfrombrowser"] = (opts["browser"],)
     if opts.get("proxy"):
         o["proxy"] = opts["proxy"]
+    if opts.get("cookiefile") and os.path.isfile(opts["cookiefile"]):
+        o["cookiefile"] = opts["cookiefile"]
     if IMPERSONATE:
         o["impersonate"] = IMPERSONATE
     if opts.get("container") in ("mp4", "mkv", "webm"):
@@ -238,7 +245,7 @@ def build_opts(key, folder, hook=None, opts=None):
     return o
 
 
-def search(query, source="youtube", n=12, browser="", proxy=""):
+def search(query, source="youtube", n=12, browser="", proxy="", cookiefile=""):
     """بحث داخل المواقع (يوتيوب / ساوند كلاود) بدون فتح المتصفح."""
     prefix = {"youtube": "ytsearch", "soundcloud": "scsearch"}.get(source, "ytsearch")
     opts = {"quiet": True, "no_warnings": True, "extract_flat": True, "skip_download": True}
@@ -246,6 +253,8 @@ def search(query, source="youtube", n=12, browser="", proxy=""):
         opts["cookiesfrombrowser"] = (browser,)
     if proxy:
         opts["proxy"] = proxy
+    if cookiefile and os.path.isfile(cookiefile):
+        opts["cookiefile"] = cookiefile
     if IMPERSONATE:
         opts["impersonate"] = IMPERSONATE
     with yt_dlp.YoutubeDL(opts) as ydl:

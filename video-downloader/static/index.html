@@ -215,6 +215,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
   <div class="f"><label>كوكيز من المتصفح (للمحتوى الخاص أو المقيّد بالعمر)</label>
     <select id="sBrowser"><option value="">بدون</option><option>chrome</option><option>edge</option><option>firefox</option><option>brave</option><option>opera</option></select></div>
   <div class="f"><label>بروكسي (اختياري، مثال: http://127.0.0.1:8080 أو socks5://127.0.0.1:1080)</label><input type="text" id="sProxy" dir="ltr"></div>
+  <div class="f"><label>ملف كوكيز cookies.txt (اختياري — يتجاوز فحص الحماية والمحتوى المقيّد؛ مثال: C:\Users\اسمك\cookies.txt)</label><input type="text" id="sCookie" dir="ltr"></div>
   <div class="f"><label>صيغة حاوية الفيديو</label>
     <select id="sContainer"><option value="mp4">MP4 (الأكثر توافقاً)</option><option value="mkv">MKV</option><option value="webm">WebM</option></select></div>
   <div class="f"><label class="chk"><input type="checkbox" id="sSort"> فرز تلقائي: الفيديو في مجلد Video والصوت في مجلد Audio</label></div>
@@ -225,6 +226,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
     <button class="btn primary" id="saveSet">حفظ</button>
     <button class="btn" id="closeSet">إغلاق</button>
     <button class="btn" id="upd">تحديث yt-dlp</button>
+    <button class="btn" id="instPhantom">تثبيت PhantomJS</button>
   </div>
 </dialog>
 
@@ -435,21 +437,25 @@ $("#openFolder").onclick=()=>api("open",{}).catch(e=>toast(e.message,true));
 function applyTheme(t){const r=document.documentElement;if(t==="auto")r.removeAttribute("data-theme");else r.setAttribute("data-theme",t);try{localStorage.setItem("theme",t);}catch{}}
 try{applyTheme(localStorage.getItem("theme")||"auto");}catch{}
 async function loadSettings(){
-  const {settings:s,version,ffmpeg,impersonate}=await api("settings");
+  const {settings:s,version,ffmpeg,impersonate,phantomjs}=await api("settings");
   $("#sFolder").value=s.folder;$("#sConc").value=s.concurrent;$("#sRate").value=s.rate_kb;$("#sConn").value=s.connections||8;$("#sBrowser").value=s.browser;$("#sProxy").value=s.proxy||"";$("#sContainer").value=s.container||"mp4";$("#sSort").checked=!!s.sort_folders;
   try{$("#sTheme").value=localStorage.getItem("theme")||"auto";}catch{}
   $("#subs").checked=!!s.subs;$("#folderHint").textContent="الحفظ في: "+s.folder;
-  $("#ver").textContent="yt-dlp "+version+(ffmpeg?" · ffmpeg ✔":" · ffmpeg غير موجود ✖")+(impersonate?" · انتحال المتصفح ✔":" · انتحال المتصفح ✖ (نفّذ run.bat ليثبّت curl_cffi)");
+  $("#ver").textContent="yt-dlp "+version+(ffmpeg?" · ffmpeg ✔":" · ffmpeg غير موجود ✖")+(impersonate?" · انتحال المتصفح ✔":" · انتحال المتصفح ✖ (نفّذ run.bat ليثبّت curl_cffi)")+(phantomjs?" · PhantomJS ✔":" · PhantomJS ✖");
+  $("#instPhantom").classList.toggle("hidden",!!phantomjs);$("#sCookie").value=s.cookiefile||"";
 }
 $("#openSettings").onclick=async()=>{await loadSettings();$("#dlg").showModal();};
 $("#closeSet").onclick=()=>$("#dlg").close();
 $("#saveSet").onclick=async()=>{
   try{
-    await api("settings",{folder:$("#sFolder").value,concurrent:+$("#sConc").value||2,rate_kb:+$("#sRate").value||0,connections:+$("#sConn").value||8,browser:$("#sBrowser").value,proxy:$("#sProxy").value,container:$("#sContainer").value,sort_folders:$("#sSort").checked,subs:$("#subs").checked});
+    await api("settings",{folder:$("#sFolder").value,concurrent:+$("#sConc").value||2,rate_kb:+$("#sRate").value||0,connections:+$("#sConn").value||8,browser:$("#sBrowser").value,proxy:$("#sProxy").value,cookiefile:$("#sCookie").value,container:$("#sContainer").value,sort_folders:$("#sSort").checked,subs:$("#subs").checked});
     applyTheme($("#sTheme").value);await loadSettings();$("#dlg").close();toast("تم الحفظ ✔");
   }catch(e){toast(e.message,true);}
 };
 $("#subs").onchange=()=>api("settings",{subs:$("#subs").checked}).catch(()=>{});
+$("#instPhantom").onclick=async()=>{const b=$("#instPhantom");b.disabled=true;b.textContent="جاري التنزيل (18 MB)...";
+  try{toast((await api("install-phantomjs",{})).message);await loadSettings();}catch(e){toast(e.message,true);}
+  b.disabled=false;b.textContent="تثبيت PhantomJS";};
 $("#upd").onclick=async()=>{const b=$("#upd");b.disabled=true;b.textContent="جاري التحديث...";
   try{toast((await api("update",{})).message);}catch(e){toast(e.message,true);}
   b.disabled=false;b.textContent="تحديث yt-dlp";};
