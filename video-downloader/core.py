@@ -25,16 +25,19 @@ def friendly_error(msg):
     msg = ANSI.sub("", str(msg)).replace("ERROR: ", "").strip()
     low = msg.lower()
     tip = ""
-    if any(s in low for s in ("sign in", "log in", "login", "private", "cookies", "age")):
+    if "http error 410" in low or "http error 404" in low or "video unavailable" in low or "has been removed" in low:
+        tip = " ← الفيديو محذوف أو الرابط انتهت صلاحيته. افتح الرابط في المتصفح وتأكد أنه يعمل، وانسخ رابط صفحة الفيديو نفسه."
+    elif any(s in low for s in ("sign in", "log in", "login required", "private", "cookies", "age-restricted",
+                                "confirm your age", "age verification")):
         tip = " ← جرّب خيار «كوكيز من المتصفح» في الإعدادات (وكن مسجّل دخول في ذلك المتصفح)."
     elif "unsupported url" in low:
         tip = " ← هذا الرابط غير مدعوم أو ليس رابط فيديو مباشر."
     elif "ffmpeg" in low:
         tip = " ← مشكلة في ffmpeg، أعد تشغيل البرنامج."
-    elif any(s in low for s in ("urlopen", "getaddrinfo", "timed out", "network")):
-        tip = " ← تأكد من اتصال الإنترنت."
     elif "http error 403" in low or "http error 429" in low:
         tip = " ← الموقع يحظر الطلبات حالياً. حدّث yt-dlp من الإعدادات أو جرّب لاحقاً."
+    elif any(s in low for s in ("urlopen", "getaddrinfo", "timed out", "network", "connection")):
+        tip = " ← تأكد من اتصال الإنترنت."
     return msg[-500:] + tip
 
 
