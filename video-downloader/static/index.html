@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="ui-version" content="7">
+<meta name="ui-version" content="8">
 <title>محمّل الفيديوهات</title>
 <style>
 :root{
@@ -462,20 +462,19 @@ $("#saveSet").onclick=async()=>{
   }catch(e){toast(e.message,true);}
 };
 $("#subs").onchange=()=>api("settings",{subs:$("#subs").checked}).catch(()=>{});
-$("#instPhantom").onclick=async()=>{const b=$("#instPhantom");b.disabled=true;b.textContent="جاري التنزيل (18 MB)...";
-  try{toast((await api("install-phantomjs",{})).message);await loadSettings();}catch(e){toast(e.message,true);}
-  b.disabled=false;b.textContent="تثبيت PhantomJS";};
-async function runDiag(url){
-  if(!url){toast("الصق رابط الموقع في المربع أولاً",true);return;}
-  const out=$("#diagOut");out.textContent="جاري الفحص... (قد يأخذ حتى نصف دقيقة)";$("#diagDlg").showModal();
-  try{
-    const r=await api("diagnose",{url});
-    const ic={ok:"✅",warn:"⚠️",fail:"❌"};
-    out.textContent=r.checks.map(c=>ic[c.state]+" "+c.name+": "+c.detail).join("\n")+"\n"+(r.proxy?"🔀 البروكسي المستخدم: "+r.proxy+"\n":"")+"\n"+r.summary.replace(/\*\*/g,"");
-  }catch(e){out.textContent="تعذّر الفحص: "+e.message;}
-}
-$("#diagBtn").onclick=()=>runDiag(parseUrls()[0]||"");
-$("#diagClose").onclick=()=>$("#diagDlg").close();
+$("#instPhantom").onclick=async()=>{
+  const b=$("#instPhantom");b.disabled=true;b.textContent="جاري البدء...";
+  try{await api("install-phantomjs",{});}catch(e){toast(e.message,true);b.disabled=false;b.textContent="تثبيت PhantomJS";return;}
+  const t=setInterval(async()=>{
+    try{
+      const p=await api("phantom-progress");
+      if(p.state==="running"){b.textContent=(p.msg||"جاري العمل")+(p.done?" — "+(p.done/1048576).toFixed(1)+" / "+(p.total/1048576).toFixed(1)+" MB":"");return;}
+      clearInterval(t);b.disabled=false;b.textContent="تثبيت PhantomJS";
+      if(p.state==="done"){toast(p.msg);loadSettings();}
+      else{$("#diagOut").textContent="⛔ "+p.msg;$("#diagDlg").showModal();}
+    }catch(e){}
+  },700);
+};
 $("#upd").onclick=async()=>{const b=$("#upd");b.disabled=true;b.textContent="جاري التحديث...";
   try{toast((await api("update",{})).message);}catch(e){toast(e.message,true);}
   b.disabled=false;b.textContent="تحديث yt-dlp";};

@@ -29,9 +29,12 @@ import yt_dlp  # noqa: E402
 import core  # noqa: E402
 
 STATE_FILE = os.path.join(APP_DIR, "state.json")
+APP_HOME = os.path.dirname(os.path.abspath(__file__))
 TOOLS_DIR = os.path.join(APP_DIR, "tools")  # أدوات مساعدة (مثل phantomjs) تُضاف تلقائياً إلى PATH
 os.makedirs(TOOLS_DIR, exist_ok=True)
-os.environ["PATH"] = TOOLS_DIR + os.pathsep + os.environ.get("PATH", "")
+TOOLS_DIRS = [TOOLS_DIR, os.path.join(APP_HOME, "tools")]  # الثاني: مجلد tools بجانب البرنامج
+os.environ["PATH"] = os.pathsep.join(TOOLS_DIRS) + os.pathsep + os.environ.get("PATH", "")
+PH_PROGRESS = {"state": "idle", "done": 0, "total": 18193653, "msg": ""}
 PHANTOM_URLS = ["https://github.com/Medium/phantomjs/releases/download/v2.1.1/phantomjs-2.1.1-windows.zip",
                 "https://bitbucket.org/ariya/phantomjs/downloads/phantomjs-2.1.1-windows.zip"]
 IS_WIN = sys.platform.startswith("win")
@@ -45,7 +48,7 @@ DEFAULTS = {"folder": os.path.join(os.path.expanduser("~"), "Downloads", "VideoD
             "cookiefile": ""}
 
 
-UI_VERSION = 7  # رقم إصدار الواجهة المطلوب (index.html يحمل meta ui-version)
+UI_VERSION = 8  # رقم إصدار الواجهة المطلوب (index.html يحمل meta ui-version)
 
 
 def _ui_candidates():
@@ -284,7 +287,7 @@ class Manager:
                 attempt += 1
                 state["done"] = 0
                 try:
-                    path = core.download(url, key, folder, hook, s)
+                    path = with_phantom(lambda: core.download(url, key, folder, hook, s))
                     size = os.path.getsize(path) if path and os.path.exists(path) else 0
                     self._set(jid, status="done", pct=100, speed=0, eta=0, file=path, size=size, note="")
                     parts.clear()
@@ -352,7 +355,7 @@ def phantom_status():
     """يفحص PhantomJS فعلياً: هل هو موجود في PATH، وهل يشتغل (phantomjs -v)؟"""
     exe = shutil.which("phantomjs")
     if not exe:
-        here = [n for n in ("phantomjs.exe", "phantomjs") if os.path.isfile(os.path.join(TOOLS_DIR, n))]
+        here = [n for d in TOOLS_DIRS for n in ("phantomjs.exe", "phantomjs") if os.path.isfile(os.path.join(d, n))]
         return {"found": False, "detail": "الملف موجود في مجلد الأدوات لكن النظام لا يراه، أعد تشغيل البرنامج" if here else "غير مثبّت"}
     try:
         r = subprocess.run([exe, "-v"], capture_output=True, text=True, timeout=15)
@@ -366,33 +369,107 @@ def phantom_status():
     return {"found": False, "detail": f"موجود لكنه لا يعمل (رمز الخروج {code:#x}){hint}"}
 
 
-def install_phantomjs():
-    """ينزّل PhantomJS (ويندوز) بعد التحقق من البصمة، ويضعه في مجلد الأدوات."""
+def _phantom_extract(data):
+    tmp = os.path.join(TOOLS_DIR, "phantomjs.exe.tmp")
+    with zipfile.ZipFile(io.BytesIO(data)) as z, z.open("phantomjs-2.1.1-windows/bin/phantomjs.exe") as src, \
+            open(tmp, "wb") as dst:
+        shutil.copyfileobj(src, dst)
+    os.replace(tmp, os.path.join(TOOLS_DIR, "phantomjs.exe"))
+
+
+def install_phantomjs(progress=None):
+    """يثبّت PhantomJS (ويندوز): أولاً من ملف zip محلي إن وُجد (Downloads/مجلد البرنامج)، وإلا ينزّله مع عرض التقدم.
+    كل ملف يُقبل فقط إن طابقت بصمته SHA-256 المعروفة."""
     if not IS_WIN:
         raise RuntimeError("التثبيت التلقائي لويندوز فقط. على لينكس/ماك ثبّت phantomjs من مدير الحزم.")
-    urls = os.environ.get("VD_PHANTOM_URLS", "").split() or PHANTOM_URLS
     want = os.environ.get("VD_PHANTOM_SHA256") or PHANTOM_SHA256
-    px = M.settings.get("proxy") or ""
+    upd = (lambda **kw: progress.update(kw)) if progress is not None else (lambda **kw: None)
+    upd(msg="يبحث عن ملف PhantomJS محلي...", done=0)
+    for d in (os.path.join(os.path.expanduser("~"), "Downloads"), APP_HOME, TOOLS_DIR):
+        try:
+            names = [f for f in os.listdir(d) if f.lower().startswith("phantomjs") and f.lower().endswith(".zip")]
+        except OSError:
+            continue
+        for f in names:
+            p = os.path.join(d, f)
+            try:
+                if os.path.getsize(p) > 60_000_000:
+                    continue
+                with open(p, "rb") as fh:
+                    data = fh.read()
+                if hashlib.sha256(data).hexdigest() == want:
+                    _phantom_extract(data)
+                    return f"تم تثبيت PhantomJS من الملف المحلي {f} ✔"
+            except Exception:  # noqa: BLE001
+                continue
+    urls = os.environ.get("VD_PHANTOM_URLS", "").split() or PHANTOM_URLS
+    px = M.settings.get("proxy") or core.system_proxy(urls[0]) or ""
     opener = urllib.request.build_opener(
         urllib.request.ProxyHandler({"http": px, "https": px}) if px.startswith("http") else urllib.request.ProxyHandler())
     last = "unknown"
     for u in urls:
         try:
+            upd(msg="جاري التنزيل من " + (urlsplit(u).hostname or u), done=0)
+            deadline = time.monotonic() + 240
             req = urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0"})
-            with opener.open(req, timeout=90) as r:
-                data = r.read(60_000_000)
+            chunks, got = [], 0
+            with opener.open(req, timeout=30) as r:
+                upd(total=int(r.headers.get("Content-Length") or PH_PROGRESS["total"]))
+                while True:
+                    if time.monotonic() > deadline:
+                        raise TimeoutError("استغرق التنزيل أكثر من 4 دقائق")
+                    b = r.read(262144)
+                    if not b:
+                        break
+                    chunks.append(b)
+                    got += len(b)
+                    upd(done=got)
+                    if got > 60_000_000:
+                        raise ValueError("الملف أكبر من المتوقع")
+            data = b"".join(chunks)
             if hashlib.sha256(data).hexdigest() != want:
                 last = "البصمة لا تطابق (تم رفض الملف)"
                 continue
-            tmp = os.path.join(TOOLS_DIR, "phantomjs.exe.tmp")
-            with zipfile.ZipFile(io.BytesIO(data)) as z, z.open("phantomjs-2.1.1-windows/bin/phantomjs.exe") as src, \
-                    open(tmp, "wb") as dst:
-                shutil.copyfileobj(src, dst)
-            os.replace(tmp, os.path.join(TOOLS_DIR, "phantomjs.exe"))
+            _phantom_extract(data)
             return "تم تثبيت PhantomJS ✔ — أعد المحاولة مع الرابط."
         except Exception as e:  # noqa: BLE001
-            last = str(e)
-    raise RuntimeError(f"تعذّر تنزيل PhantomJS ({last[:100]}). جرّب VPN أو بروكسي في الإعدادات ثم أعد المحاولة.")
+            last = str(e)[:100]
+    raise RuntimeError(
+        f"تعذّر تنزيل PhantomJS ({last}).\nالحل: نزّل هذا الملف من متصفحك (الذي يعمل عبر الـ VPN): {PHANTOM_URLS[0]}\n"
+        "ثم اتركه في مجلد Downloads بدون تغيير اسمه، واضغط «تثبيت PhantomJS» من جديد، وسيثبّته البرنامج تلقائياً من الملف.")
+
+
+def _phantom_worker():
+    PH_PROGRESS.update(state="running", done=0, msg="")
+    try:
+        PH_PROGRESS.update(state="done", msg=install_phantomjs(PH_PROGRESS))
+    except Exception as e:  # noqa: BLE001
+        PH_PROGRESS.update(state="error", msg=str(e))
+
+
+def with_phantom(fn):
+    """ينفّذ fn؛ وإن فشل لأن PhantomJS غير موجود، يثبّته تلقائياً (ويندوز) ويعيد المحاولة مرة واحدة،
+    ولو بقي الخطأ يضيف سبب عدم اشتغال الأداة بدل ترك المستخدم يخمّن."""
+    try:
+        return fn()
+    except Exception as e:  # noqa: BLE001
+        if "phantomjs" not in str(e).lower():
+            raise
+        first = core.friendly_error(e)
+        have_file = any(os.path.isfile(os.path.join(d, n)) for d in TOOLS_DIRS for n in ("phantomjs.exe", "phantomjs"))
+        if IS_WIN and not have_file:
+            try:
+                install_phantomjs()
+            except Exception as ie:  # noqa: BLE001
+                raise RuntimeError(f"{first}\n⛔ التثبيت التلقائي لـ PhantomJS فشل: {ie}") from None
+            try:
+                return fn()
+            except Exception as e2:  # noqa: BLE001
+                st = phantom_status()
+                extra = "" if st["found"] else f"\n🔧 حالة PhantomJS: {st['detail']}"
+                raise RuntimeError(core.friendly_error(e2) + extra) from None
+        st = phantom_status()
+        raise RuntimeError(first + ("" if st["found"] else f"\n🔧 حالة PhantomJS: {st['detail']}")) from None
 
 
 def update_ytdlp():
@@ -499,6 +576,8 @@ class Handler(BaseHTTPRequestHandler):
                                     "ffmpeg": bool(core.FFMPEG), "impersonate": bool(core.IMPERSONATE),
                                     "phantomjs": ps["found"], "phantomjs_detail": ps["detail"],
                                     "system_proxy": core.system_proxy("https://example.com")})
+        if self.path == "/api/phantom-progress":
+            return self._send(200, dict(PH_PROGRESS))
         if self.path == "/api/ping":
             return self._send(200, {"ok": True})
         self._send(404, {"error": "not found"})
@@ -517,7 +596,8 @@ class Handler(BaseHTTPRequestHandler):
                 urls = valid_urls([body.get("url")])
                 if not urls:
                     return self._send(400, {"error": "رابط غير صالح"})
-                return self._send(200, core.fetch_info(urls[0], M.settings["browser"], M.settings["proxy"], M.settings["cookiefile"]))
+                return self._send(200, with_phantom(lambda: core.fetch_info(
+                    urls[0], M.settings["browser"], M.settings["proxy"], M.settings["cookiefile"])))
             if route == "search":
                 q = str(body.get("q") or "").strip()[:200]
                 if not q:
@@ -579,7 +659,9 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(400, {"error": "الصق رابطاً صالحاً أولاً"})
                 return self._send(200, core.diagnose(u[0], M.settings["proxy"]))
             if route == "install-phantomjs":
-                return self._send(200, {"message": install_phantomjs()})
+                if PH_PROGRESS["state"] != "running":
+                    threading.Thread(target=_phantom_worker, daemon=True).start()
+                return self._send(200, {"started": True})
             if route == "update":
                 return self._send(200, {"message": update_ytdlp()})
             self._send(404, {"error": "not found"})
