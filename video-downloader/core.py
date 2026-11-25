@@ -11,6 +11,13 @@ except Exception:
     FFMPEG = None  # لو عندك ffmpeg في النظام يشتغل برضو
 
 BEST, AUDIO = "best", "audio"
+AUDIO_KEYS = ("a_best", "mp3_320", "mp3_192", "mp3_128", "audio")
+
+
+def key_label(key):
+    k = str(key)
+    return {"best": "أعلى جودة", "a_best": "صوت أصلي", "audio": "MP3 192", "mp3_320": "MP3 320",
+            "mp3_192": "MP3 192", "mp3_128": "MP3 128"}.get(k, f"{k}p")
 ANSI = re.compile(r"\x1b\[[0-9;]*m")
 
 
@@ -63,29 +70,47 @@ def fetch_info(url, browser=""):
     return {"type": "video", "title": info.get("title") or url,
             "thumbnail": info.get("thumbnail") or "", "duration": info.get("duration") or 0,
             "uploader": info.get("uploader") or info.get("channel") or "",
-            "qualities": [{"label": l, "key": k} for l, k in list_qualities(info)]}
+            "qualities": [{"label": l, "key": k} for l, k in list_qualities(info) if k != AUDIO],
+            "audio": audio_options(info)}
 
 
 def list_qualities(info):
-    """قائمة (النص، المفتاح): 'best' أو 'audio' أو ارتفاع الفيديو."""
+    """قائمة (النص، المفتاح): 'best' أو ارتفاع الفيديو، وفي آخرها 'audio'."""
     formats = info.get("formats") or []
     audio_sizes = [f.get("filesize") or f.get("filesize_approx") or 0
                    for f in formats if f.get("vcodec") == "none" and f.get("acodec") != "none"]
     best_audio = max(audio_sizes, default=0)
-    by_height = {}
+    by_height = {}  # h -> [أكبر حجم، أعلى fps]
     for f in formats:
         h = f.get("height")
         if f.get("vcodec") in (None, "none") or not h:
             continue
         size = f.get("filesize") or f.get("filesize_approx") or 0
-        by_height[h] = max(by_height.get(h, 0), size)
-    items = [("أعلى جودة متاحة", BEST)]
-    for h in sorted(by_height, reverse=True):
+        cur = by_height.setdefault(h, [0, 0])
+        cur[0] = max(cur[0], size)
+        cur[1] = max(cur[1], f.get("fps") or 0)
+    heights = sorted(by_height, reverse=True)
+    items = [(f"أعلى جودة متاحة ({heights[0]}p)" if heights else "أعلى جودة متاحة", BEST)]
+    for h in heights:
+        size, fps = by_height[h]
         has_audio = any(f.get("height") == h and f.get("acodec") not in (None, "none") for f in formats)
-        total = by_height[h] + (0 if has_audio else best_audio)
-        items.append((f"{h}p" + (f"  ·  {_size_text(total)}" if total else ""), h))
+        total = size + (0 if has_audio else best_audio)
+        label = f"{h}p" + (f"{int(fps)}" if fps and fps > 30 else "")
+        items.append((label + (f"  ·  {_size_text(total)}" if total else ""), h))
     items.append(("صوت فقط (MP3)", AUDIO))
     return items
+
+
+def audio_options(info):
+    """خيارات جودة الصوت: الأصلي بدون تحويل، أو MP3 بعدة جودات."""
+    abrs = [f.get("abr") or 0 for f in (info.get("formats") or [])
+            if f.get("vcodec") == "none" and f.get("acodec") not in (None, "none")]
+    top = max(abrs, default=0)
+    orig = "أعلى جودة صوت أصلية" + (f"  ·  ~{int(top)} kbps" if top else "") + "  (بدون تحويل)"
+    return [{"label": orig, "key": "a_best"},
+            {"label": "MP3  ·  320 kbps", "key": "mp3_320"},
+            {"label": "MP3  ·  192 kbps", "key": "mp3_192"},
+            {"label": "MP3  ·  128 kbps", "key": "mp3_128"}]
 
 
 def build_opts(key, folder, hook=None, opts=None):
@@ -111,14 +136,18 @@ def build_opts(key, folder, hook=None, opts=None):
         o.update({"writesubtitles": True, "writeautomaticsub": True,
                   "subtitleslangs": ["ar", "en"], "subtitlesformat": "srt/best"})
         o["postprocessors"].append({"key": "FFmpegSubtitlesConvertor", "format": "srt"})
-    if key == AUDIO:
+    k = str(key)
+    if k == "a_best":
         o["format"] = "bestaudio/best"
-        o["postprocessors"].insert(0, {"key": "FFmpegExtractAudio",
-                                       "preferredcodec": "mp3", "preferredquality": "192"})
-    elif key == BEST:
+    elif k == AUDIO or k.startswith("mp3_"):
+        q = k.split("_")[1] if "_" in k else "192"
+        o["format"] = "bestaudio/best"
+        o["postprocessors"].insert(0, {"key": "FFmpegExtractAudio", "preferredcodec": "mp3",
+                                       "preferredquality": q})
+    elif k == BEST:
         o["format"] = "bestvideo+bestaudio/best"
     else:
-        h = int(key)
+        h = int(k)
         o["format"] = f"bestvideo[height<={h}]+bestaudio/best[height<={h}]/best"
     return o
 

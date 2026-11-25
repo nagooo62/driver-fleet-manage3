@@ -92,10 +92,10 @@ class Manager:
                 s["subs"] = bool(subs)
             for u in urls:
                 jid = uuid.uuid4().hex[:10]
-                label = {"best": "أعلى جودة", "audio": "MP3"}.get(str(key), f"{key}p")
+                label = core.key_label(key)
                 self.jobs[jid] = {"id": jid, "url": u, "title": title or u, "thumb": thumb, "key": key,
                                   "label": label, "status": "queued", "pct": 0, "speed": 0, "eta": 0,
-                                  "file": "", "error": "", "created": time.time(), "folder": s["folder"]}
+                                  "file": "", "size": 0, "error": "", "created": time.time(), "folder": s["folder"]}
                 self.cancel[jid] = threading.Event()
                 threading.Thread(target=self._run, args=(jid, s), daemon=True).start()
                 ids.append(jid)
@@ -134,7 +134,8 @@ class Manager:
 
             try:
                 path = core.download(self.jobs[jid]["url"], self.jobs[jid]["key"], self.jobs[jid]["folder"], hook, s)
-                self._set(jid, status="done", pct=100, speed=0, eta=0, file=path)
+                size = os.path.getsize(path) if path and os.path.exists(path) else 0
+                self._set(jid, status="done", pct=100, speed=0, eta=0, file=path, size=size)
             except yt_dlp.utils.DownloadCancelled:
                 self._set(jid, status="canceled", speed=0, eta=0)
             except Exception as e:  # noqa: BLE001
@@ -156,16 +157,25 @@ class Manager:
 M = Manager()
 
 
-def open_path(jid=None):
-    """يفتح المجلد/الملف. يقبل فقط معرّف مهمة معروف أو مجلد الإعدادات."""
+def open_path(jid=None, mode="folder"):
+    """يفتح الملف أو مجلده. يقبل فقط معرّف مهمة معروف أو مجلد الإعدادات."""
     with M.lock:
         job = M.jobs.get(jid) if jid else None
         folder = job["folder"] if job else M.settings["folder"]
         path = job["file"] if job and job["file"] and os.path.exists(job["file"]) else ""
+    win, mac = sys.platform.startswith("win"), sys.platform == "darwin"
+    if mode == "file":
+        if not path:
+            raise RuntimeError("الملف غير موجود (ربما نُقل أو حُذف).")
+        if win:
+            os.startfile(path)  # noqa: S606
+        else:
+            subprocess.Popen(["open" if mac else "xdg-open", path])
+        return
     os.makedirs(folder, exist_ok=True)
-    if sys.platform.startswith("win"):
+    if win:
         subprocess.Popen(["explorer", f"/select,{os.path.normpath(path)}"] if path else ["explorer", os.path.normpath(folder)])
-    elif sys.platform == "darwin":
+    elif mac:
         subprocess.Popen(["open", "-R", path] if path else ["open", folder])
     else:
         subprocess.Popen(["xdg-open", folder])
@@ -246,7 +256,7 @@ class Handler(BaseHTTPRequestHandler):
             if route == "download":
                 urls = valid_urls(body.get("urls"))
                 key = body.get("key", "best")
-                if key not in ("best", "audio"):
+                if key not in ("best", *core.AUDIO_KEYS):
                     key = int(key)
                 if not urls:
                     return self._send(400, {"error": "لا توجد روابط صالحة"})
@@ -274,7 +284,7 @@ class Handler(BaseHTTPRequestHandler):
                 M.set_settings(body)
                 return self._send(200, {"settings": M.settings})
             if route == "open":
-                open_path(body.get("id"))
+                open_path(body.get("id"), "file" if body.get("mode") == "file" else "folder")
                 return self._send(200, {"ok": True})
             if route == "update":
                 return self._send(200, {"message": update_ytdlp()})
