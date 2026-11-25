@@ -4,6 +4,7 @@ import io
 import json
 import mimetypes
 import os
+import re
 import secrets
 import shutil
 import socket
@@ -42,6 +43,47 @@ DEFAULTS = {"folder": os.path.join(os.path.expanduser("~"), "Downloads", "VideoD
             "concurrent": 2, "rate_kb": 0, "browser": "", "subs": False,
             "proxy": "", "sort_folders": True, "container": "mp4", "connections": 8,
             "cookiefile": ""}
+
+
+UI_VERSION = 6  # رقم إصدار الواجهة المطلوب (index.html يحمل meta ui-version)
+
+
+def _ui_candidates():
+    here = os.path.dirname(os.path.abspath(__file__))
+    out = []
+    for p in (resource("static/index.html"), os.path.join(here, "static", "index.html"), os.path.join(here, "index.html")):
+        if p not in out and os.path.isfile(p):
+            out.append(p)
+    return out
+
+
+def load_ui():
+    """يختار أحدث واجهة موجودة (حتى لو وُضع index.html في المجلد الخطأ)، وينبّه لو كانت قديمة."""
+    best = None
+    for p in _ui_candidates():
+        try:
+            with open(p, encoding="utf-8") as f:
+                txt = f.read()
+        except OSError:
+            continue
+        m = re.search(r'name="ui-version"\s+content="(\d+)"', txt)
+        ver = int(m.group(1)) if m else 0
+        key = (ver, os.path.getmtime(p))
+        if best is None or key > best[0]:
+            best = (key, p, txt, ver)
+    if best is None:
+        return "<h1>index.html not found — ضعه داخل مجلد static</h1><p>__TOKEN__</p>"
+    _, path, txt, ver = best
+    load_ui.last = (path, ver)
+    if ver < UI_VERSION:
+        banner = ('<div style="background:#d92d20;color:#fff;padding:10px 16px;text-align:center;font:600 14px Tahoma,sans-serif">'
+                  '⚠ ملف الواجهة index.html قديم (إصدار %d، المطلوب %d). استخرج الملفات الجديدة بالكامل فوق مجلد البرنامج، '
+                  'وتأكد أن index.html داخل مجلد static.</div>' % (ver, UI_VERSION))
+        txt = txt.replace("<body>", "<body>" + banner, 1) if "<body>" in txt else banner + txt
+    return txt
+
+
+load_ui.last = ("", 0)
 
 
 def resource(rel):
@@ -427,8 +469,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(403, {"error": "forbidden"})
             return self._serve_media(sp.path[len("/media/"):])
         if self.path in ("/", "/index.html"):
-            with open(resource("static/index.html"), encoding="utf-8") as f:
-                html = f.read().replace("__TOKEN__", TOKEN)
+            html = load_ui().replace("__TOKEN__", TOKEN)
             return self._send(200, html.encode(), "text/html; charset=utf-8")
         if self.headers.get("X-Token") != TOKEN:
             return self._send(403, {"error": "forbidden"})
@@ -571,7 +612,8 @@ def main():
     httpd.daemon_threads = True
     threading.Thread(target=watchdog, daemon=True).start()
     threading.Thread(target=open_ui, args=(f"http://127.0.0.1:{port}/",), daemon=True).start()
-    print(f"running on http://127.0.0.1:{port}/", flush=True)
+    load_ui()
+    print(f"running on http://127.0.0.1:{port}/  |  UI file: {load_ui.last[0]} (v{load_ui.last[1]})", flush=True)
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
