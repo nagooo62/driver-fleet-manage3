@@ -1,5 +1,6 @@
 """محمّل الفيديوهات - يشتغل محلياً على جهازك: خادم صغير + واجهة تفتح كنافذة تطبيق."""
 import json
+import mimetypes
 import os
 import secrets
 import socket
@@ -10,6 +11,7 @@ import time
 import uuid
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import parse_qs, urlsplit
 
 APP_DIR = os.environ.get("VD_HOME") or os.path.join(os.path.expanduser("~"), ".video-downloader")
 os.makedirs(APP_DIR, exist_ok=True)
@@ -23,7 +25,8 @@ STATE_FILE = os.path.join(APP_DIR, "state.json")
 TOKEN = secrets.token_urlsafe(24)
 IDLE_EXIT_SECONDS = 150
 DEFAULTS = {"folder": os.path.join(os.path.expanduser("~"), "Downloads", "VideoDownloader"),
-            "concurrent": 2, "rate_kb": 0, "browser": "", "subs": False}
+            "concurrent": 2, "rate_kb": 0, "browser": "", "subs": False,
+            "proxy": "", "sort_folders": True, "container": "mp4"}
 
 
 def resource(rel):
@@ -76,6 +79,8 @@ class Manager:
                         v = str(v).strip()
                     self.settings[k] = v
             self.settings["concurrent"] = min(6, max(1, self.settings["concurrent"]))
+            if self.settings["container"] not in ("mp4", "mkv", "webm"):
+                self.settings["container"] = "mp4"
             if self.settings["browser"] not in ("", "chrome", "edge", "firefox", "brave", "opera"):
                 self.settings["browser"] = ""
             if not self.settings["folder"]:
@@ -84,12 +89,16 @@ class Manager:
         self.save()
 
     # ---- المهام ----
-    def add(self, items, key, subs=None):
+    def add(self, items, key, subs=None, extra=None):
         ids = []
         with self.lock:
             s = dict(self.settings)
             if subs is not None:
                 s["subs"] = bool(subs)
+            if extra:
+                s.update(extra)
+            sub = ("Audio" if str(key) in core.AUDIO_KEYS else "Video") if s.get("sort_folders") else ""
+            folder = os.path.join(s["folder"], sub) if sub else s["folder"]
             for it in items:
                 u = it["url"]
                 jid = uuid.uuid4().hex[:10]
@@ -97,7 +106,7 @@ class Manager:
                 self.jobs[jid] = {"id": jid, "url": u, "index": it.get("index"), "title": it.get("title") or u,
                                   "thumb": it.get("thumb") or "", "key": key,
                                   "label": label, "status": "queued", "pct": 0, "speed": 0, "eta": 0,
-                                  "file": "", "size": 0, "error": "", "created": time.time(), "folder": s["folder"]}
+                                  "file": "", "size": 0, "error": "", "created": time.time(), "folder": folder}
                 self.cancel[jid] = threading.Event()
                 threading.Thread(target=self._run, args=(jid, dict(s, playlist_item=it.get("index"))), daemon=True).start()
                 ids.append(jid)
@@ -221,10 +230,59 @@ class Handler(BaseHTTPRequestHandler):
     def _host_ok(self):
         return self.headers.get("Host", "").rsplit(":", 1)[0] in ("127.0.0.1", "localhost")
 
+    def _serve_media(self, jid):
+        with M.lock:
+            j = M.jobs.get(jid)
+            path = j.get("file") if j else ""
+        if not path or not os.path.isfile(path):
+            return self._send(404, {"error": "not found"})
+        size = os.path.getsize(path)
+        start, end, code = 0, size - 1, 200
+        rng = self.headers.get("Range") or ""
+        if rng.startswith("bytes="):
+            s, _, e = rng[6:].partition("-")
+            try:
+                if s == "":
+                    start = max(0, size - int(e))
+                else:
+                    start = int(s)
+                    end = int(e) if e else size - 1
+            except ValueError:
+                start, end = 0, size - 1
+            end = min(end, size - 1)
+            if start > end:
+                return self._send(416, {"error": "range"})
+            code = 206
+        self.send_response(code)
+        self.send_header("Content-Type", mimetypes.guess_type(path)[0] or "application/octet-stream")
+        self.send_header("Accept-Ranges", "bytes")
+        self.send_header("Content-Length", str(end - start + 1))
+        if code == 206:
+            self.send_header("Content-Range", f"bytes {start}-{end}/{size}")
+        self.end_headers()
+        try:
+            with open(path, "rb") as f:
+                f.seek(start)
+                left = end - start + 1
+                while left > 0:
+                    chunk = f.read(min(262144, left))
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+                    left -= len(chunk)
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+
     def do_GET(self):
         if not self._host_ok():
             return self._send(403, {"error": "forbidden"})
         M.last_ping = time.time()
+        sp = urlsplit(self.path)
+        if sp.path.startswith("/media/"):
+            k = parse_qs(sp.query).get("k", [""])[0]
+            if not secrets.compare_digest(k, TOKEN):
+                return self._send(403, {"error": "forbidden"})
+            return self._serve_media(sp.path[len("/media/"):])
         if self.path in ("/", "/index.html"):
             with open(resource("static/index.html"), encoding="utf-8") as f:
                 html = f.read().replace("__TOKEN__", TOKEN)
@@ -254,7 +312,13 @@ class Handler(BaseHTTPRequestHandler):
                 urls = valid_urls([body.get("url")])
                 if not urls:
                     return self._send(400, {"error": "رابط غير صالح"})
-                return self._send(200, core.fetch_info(urls[0], M.settings["browser"]))
+                return self._send(200, core.fetch_info(urls[0], M.settings["browser"], M.settings["proxy"]))
+            if route == "search":
+                q = str(body.get("q") or "").strip()[:200]
+                if not q:
+                    return self._send(400, {"error": "اكتب كلمة البحث"})
+                return self._send(200, {"results": core.search(q, body.get("source", "youtube"), 12,
+                                                               M.settings["browser"], M.settings["proxy"])})
             if route == "download":
                 key = body.get("key", "best")
                 if key not in ("best", *core.AUDIO_KEYS):
@@ -272,7 +336,14 @@ class Handler(BaseHTTPRequestHandler):
                                   "thumb": str(it.get("thumb") or "")[:1000]})
                 if not items:
                     return self._send(400, {"error": "لا توجد روابط صالحة"})
-                return self._send(200, {"ids": M.add(items, key, body.get("subs"))})
+                extra = {}
+                tr = body.get("trim")
+                if isinstance(tr, dict):
+                    st, en = float(tr.get("start") or 0), float(tr.get("end") or 0)
+                    if st < 0 or en < 0 or (en and en <= st):
+                        return self._send(400, {"error": "وقت القص غير صحيح"})
+                    extra = {"start": st, "end": en}
+                return self._send(200, {"ids": M.add(items, key, body.get("subs"), extra)})
             if route == "cancel":
                 ev = M.cancel.get(body.get("id"))
                 if ev:

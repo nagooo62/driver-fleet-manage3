@@ -62,7 +62,27 @@ label.chk{display:flex;gap:6px;align-items:center;color:var(--muted);cursor:poin
 .item span.d{color:var(--muted);font-size:12.5px}
 .est{color:var(--muted);font-size:12.5px;margin-top:8px}
 .note{background:var(--chip);border-radius:10px;padding:8px 12px;margin-top:10px;font-size:13px;color:var(--muted)}
-.sect{display:flex;align-items:center;margin:22px 4px 10px}
+.seg{display:inline-flex;background:var(--chip);border-radius:12px;padding:4px;gap:4px;margin-bottom:12px}
+.seg-b{border:0;background:transparent;color:var(--text);padding:7px 18px;border-radius:9px;font:inherit;font-weight:600;cursor:pointer}
+.seg-b.on{background:var(--card);box-shadow:0 1px 4px rgba(0,0,0,.15)}
+.banner{display:flex;align-items:center;gap:8px;background:var(--chip);border:1px dashed var(--brand);border-radius:12px;padding:8px 12px;margin-bottom:12px;font-size:14px;flex-wrap:wrap}
+.sites{margin-top:14px;font-size:13px;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.sites a{color:var(--text);text-decoration:none;background:var(--chip);border-radius:8px;padding:3px 10px}
+.sites a:hover{background:var(--brand);color:#fff}
+.btn-like{display:inline-block}
+.results{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;margin-top:14px}
+.res{border:1px solid var(--line);border-radius:12px;padding:8px;display:flex;flex-direction:column;gap:6px;background:var(--bg)}
+.res img{width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:8px;background:var(--chip)}
+.res img:not([src]){visibility:hidden}
+.res .rt{font-weight:600;font-size:13.5px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.res .rm{font-size:12px;color:var(--muted)}
+.trim{margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.trim input[type=text]{width:140px;direction:ltr;text-align:center}
+#player{width:min(860px,96vw)}
+#player video{max-height:70vh;background:#000;border-radius:10px}
+.stats{color:var(--muted);font-size:13px;margin:0 4px 8px}
+.sect input{width:180px;padding:6px 10px}
+.sect{display:flex;align-items:center;margin:22px 4px 10px;gap:8px}
 .sect h2{font-size:16px;margin:0}
 .job{display:grid;grid-template-columns:100px 1fr;gap:6px 12px;padding:12px;border:1px solid var(--line);border-radius:14px;background:var(--card);margin-bottom:10px}
 .job img:not([src]){visibility:hidden}
@@ -100,14 +120,37 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
     <button class="icon-btn" id="openSettings">⚙ الإعدادات</button>
   </header>
 
-  <section class="card">
-    <textarea id="urls" rows="2" placeholder="الصق رابط الفيديو هنا... (أو عدة روابط، كل رابط في سطر)" spellcheck="false" autofocus></textarea>
-    <div class="row">
-      <button class="btn primary" id="analyze">تحليل الرابط</button>
-      <button class="btn" id="paste">📋 لصق</button>
-      <label class="chk"><input type="checkbox" id="subs"> تحميل الترجمة (SRT)</label>
-      <span class="sp"></span>
-      <span class="hint" id="folderHint"></span>
+  <div id="clipBanner" class="banner hidden"><span id="clipText"></span><span class="sp"></span>
+    <button class="btn sm primary" id="clipGo">تحليل</button><button class="btn sm" id="clipX">✖</button></div>
+
+  <section class="card" id="inputCard">
+    <div class="seg"><button class="seg-b on" data-mode="link">🔗 رابط</button><button class="seg-b" data-mode="search">🔍 بحث</button></div>
+    <div id="linkMode">
+      <textarea id="urls" rows="2" placeholder="الصق رابط الفيديو هنا... (أو عدة روابط، كل رابط في سطر — أو اسحب الرابط وأفلته هنا)" spellcheck="false" autofocus></textarea>
+      <div class="row">
+        <button class="btn primary" id="analyze">تحليل الرابط</button>
+        <button class="btn" id="paste">📋 لصق</button>
+        <label class="btn" for="fileIn">📄 استيراد روابط من ملف</label><input type="file" id="fileIn" accept=".txt,.csv" class="hidden">
+        <label class="chk"><input type="checkbox" id="subs"> تحميل الترجمة (SRT)</label>
+        <span class="sp"></span>
+        <span class="hint" id="folderHint"></span>
+      </div>
+    </div>
+    <div id="searchMode" class="hidden">
+      <div class="row" style="margin-top:0">
+        <input type="text" id="q" placeholder="ابحث عن فيديو أو أغنية..." style="flex:1;min-width:180px">
+        <select id="qsrc" style="width:auto"><option value="youtube">يوتيوب</option><option value="soundcloud">ساوند كلاود</option></select>
+        <button class="btn primary" id="doSearch">بحث</button>
+      </div>
+      <div id="results" class="results"></div>
+    </div>
+    <div class="sites">افتح الموقع وانسخ الرابط:
+      <a href="https://www.youtube.com" target="_blank" rel="noopener noreferrer">YouTube</a>
+      <a href="https://www.tiktok.com" target="_blank" rel="noopener noreferrer">TikTok</a>
+      <a href="https://www.instagram.com" target="_blank" rel="noopener noreferrer">Instagram</a>
+      <a href="https://www.facebook.com" target="_blank" rel="noopener noreferrer">Facebook</a>
+      <a href="https://x.com" target="_blank" rel="noopener noreferrer">X</a>
+      <a href="https://soundcloud.com" target="_blank" rel="noopener noreferrer">SoundCloud</a>
     </div>
   </section>
 
@@ -138,6 +181,10 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
     <div class="est hidden" id="estNote">الأحجام تقديرية للقوائم (تُحسب من المدة والجودة)، والحجم الفعلي قد يختلف قليلاً.</div>
     <div class="note hidden" id="audioNote">تحويل MP3 لا يرفع الجودة فوق جودة الصوت الأصلية في المصدر. اختر «أعلى جودة أصلية» لحفظ الصوت كما هو بدون أي فقد.</div>
 
+    <div class="trim" id="trimBox">
+      <label class="chk"><input type="checkbox" id="trimOn"> ✂ قص جزء فقط من المقطع</label>
+      <span id="trimFields" class="hidden"><input type="text" id="trimFrom" placeholder="من (مثال 1:30)"> <input type="text" id="trimTo" placeholder="إلى (مثال 2:45)"></span>
+    </div>
     <div class="row" style="margin-top:18px">
       <button class="btn primary" id="startDl">⬇ ابدأ التحميل</button>
       <span class="hint" id="chosen"></span>
@@ -145,10 +192,17 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
   </section>
 
   <div class="sect"><h2>التحميلات</h2><span class="sp"></span>
+    <input type="text" id="hist" placeholder="🔎 بحث في التحميلات...">
     <button class="btn sm" id="clearDone">مسح المنتهية</button></div>
+  <div class="stats" id="stats"></div>
   <div id="jobs"></div>
   <div class="empty" id="empty">لا توجد تحميلات بعد. الصق رابطاً في الأعلى وابدأ.</div>
 </div>
+
+<dialog id="player">
+  <div class="row" style="margin:0 0 10px"><b id="playerTitle" style="flex:1;overflow-wrap:anywhere"></b><button class="btn sm" id="playerClose">✖ إغلاق</button></div>
+  <div id="playerBox"></div>
+</dialog>
 
 <dialog id="dlg">
   <h2 style="margin-top:0">الإعدادات</h2>
@@ -157,6 +211,10 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
   <div class="f"><label>حدّ السرعة (كيلوبايت/ثانية، 0 = بدون حد)</label><input type="number" id="sRate" min="0"></div>
   <div class="f"><label>كوكيز من المتصفح (للمحتوى الخاص أو المقيّد بالعمر)</label>
     <select id="sBrowser"><option value="">بدون</option><option>chrome</option><option>edge</option><option>firefox</option><option>brave</option><option>opera</option></select></div>
+  <div class="f"><label>بروكسي (اختياري، مثال: http://127.0.0.1:8080 أو socks5://127.0.0.1:1080)</label><input type="text" id="sProxy" dir="ltr"></div>
+  <div class="f"><label>صيغة حاوية الفيديو</label>
+    <select id="sContainer"><option value="mp4">MP4 (الأكثر توافقاً)</option><option value="mkv">MKV</option><option value="webm">WebM</option></select></div>
+  <div class="f"><label class="chk"><input type="checkbox" id="sSort"> فرز تلقائي: الفيديو في مجلد Video والصوت في مجلد Audio</label></div>
   <div class="f"><label>المظهر</label>
     <select id="sTheme"><option value="auto">تلقائي</option><option value="light">فاتح</option><option value="dark">داكن</option></select></div>
   <div class="f hint" id="ver"></div>
@@ -189,9 +247,9 @@ let items=[];   // للقوائم/عدة روابط: [{url,index,title,duration,
 let tab="video";
 // أحجام تقديرية للقوائم (kbps للفيديو + 128 للصوت المرافق)
 const VBR={2160:14000,1440:7000,1080:3800,720:2000,480:1000,360:550,240:300,144:150,best:3800};
-const ABR={a_best:160,mp3_320:320,mp3_192:192,mp3_128:128};
+const ABR={a_best:160,mp3_320:320,mp3_192:192,mp3_128:128,m4a:256,flac:900,wav:1411};
 const VIDEO_PRESETS=[["أعلى جودة","best"],["1080p",1080],["720p",720],["480p",480],["360p",360]];
-const AUDIO_PRESETS=[["أعلى جودة أصلية (بدون تحويل)","a_best"],["MP3 · 320 kbps","mp3_320"],["MP3 · 192 kbps","mp3_192"],["MP3 · 128 kbps","mp3_128"]];
+const AUDIO_PRESETS=[["أعلى جودة أصلية (بدون تحويل)","a_best"],["MP3 · 320 kbps","mp3_320"],["MP3 · 192 kbps","mp3_192"],["MP3 · 128 kbps","mp3_128"],["M4A (AAC) · 256 kbps","m4a"],["FLAC · بدون فقد","flac"],["WAV · غير مضغوط","wav"]];
 const estSize=(key,secs,audio)=>secs?secs*(audio?(ABR[key]||192):((VBR[key]||1500)+128))*125:0;
 function parseUrls(){
   return $("#urls").value.split(/\s+/).map(s=>s.trim()).filter(Boolean)
@@ -210,6 +268,7 @@ function setTab(t,keepKey){
   document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("on",b.dataset.type===t));
   $("#stepQ").textContent=t==="video"?(cur.multi?"اختر جودة الفيديو:":"اختر جودة الفيديو (المتاحة في هذا المقطع):"):"اختر جودة الصوت:";
   $("#audioNote").classList.toggle("hidden",t!=="audio");
+  $("#trimBox").classList.toggle("hidden",!!cur.multi);
   const list=getOpts()[t]||[];const box=$("#chips");box.replaceChildren();
   let chosen=null;
   list.forEach((o,i)=>{
@@ -294,8 +353,14 @@ async function startDl(){
   const b=$("#startDl");b.disabled=true;
   const list=cur.multi?items.filter(i=>i.on).map(i=>({url:i.url,index:i.index,title:i.title===i.url?"":i.title,thumb:i.thumb}))
                       :[{url:cur.url,index:null,title:cur.title,thumb:cur.thumb}];
+  let trim=null;
+  if(!cur.multi&&$("#trimOn").checked){
+    const a=toSecs($("#trimFrom").value),z=toSecs($("#trimTo").value);
+    if(isNaN(a)||isNaN(z)||(z&&z<=a)||(!a&&!z)){toast("تحقق من وقت القص (مثال: 1:30 إلى 2:45)",true);b.disabled=false;return;}
+    trim={start:a,end:z};
+  }
   try{
-    await api("download",{items:list,key:cur.key,subs:tab==="video"&&$("#subs").checked});
+    await api("download",{items:list,key:cur.key,subs:tab==="video"&&$("#subs").checked,trim});
     toast("أُضيف للتحميل ✔ ("+list.length+")");$("#result").classList.add("hidden");$("#urls").value="";cur=null;opts=null;items=[];refresh();
   }catch(e){toast(e.message,true);}
   finally{b.disabled=false;}
@@ -317,14 +382,15 @@ function mkJob(j){
   const open=mode=>api("open",{id:j.id,mode}).catch(e=>toast(e.message,true));
   d._play=mk("▶ فتح الملف","primary",()=>open("file"));
   d._folder=mk("📂 فتح المجلد","",()=>open("folder"));
-  d._cancel=mk("✖ إلغاء","danger",()=>api("cancel",{id:j.id}).then(refresh));
-  d._retry=mk("↻ إعادة المحاولة","",()=>{api("download",{items:[{url:d._url,index:d._index}],key:d._key}).then(()=>api("remove",{id:j.id})).then(refresh);});
+  d._player=mk("🎞 تشغيل هنا","",()=>openPlayer(j.id,d._title,d._audio));
+  d._cancel=mk("⏸ إيقاف","danger",()=>api("cancel",{id:j.id}).then(refresh));
+  d._retry=mk("↻ استئناف / إعادة","",()=>{api("download",{items:[{url:d._url,index:d._index}],key:d._key}).then(()=>api("remove",{id:j.id})).then(refresh);});
   d._rm=mk("🗑 حذف من القائمة","",()=>api("remove",{id:j.id}).then(refresh));
   d.querySelector("img").onerror=e=>e.target.style.visibility="hidden";
   return d;
 }
 function upd(d,j){
-  d._url=j.url;d._key=j.key;d._index=j.index;
+  d._url=j.url;d._key=j.key;d._index=j.index;d._title=j.title;d._audio=/^(a_best|mp3_|m4a|flac|wav|audio)/.test(String(j.key));
   d.className="job "+j.status;
   const im=d.querySelector("img");if(j.thumb&&im.getAttribute("src")!==j.thumb){im.src=j.thumb;im.style.visibility="visible";}
   d.querySelector(".j-title").textContent=j.title;
@@ -337,12 +403,13 @@ function upd(d,j){
   d._cancel.classList.toggle("hidden",!active||j.status==="processing");
   d._play.classList.toggle("hidden",j.status!=="done");
   d._folder.classList.toggle("hidden",j.status!=="done");
+  d._player.classList.toggle("hidden",j.status!=="done");
   d._retry.classList.toggle("hidden",!["error","canceled"].includes(j.status));
   d._rm.classList.toggle("hidden",active);
 }
 async function refresh(){
   try{
-    const {jobs}=await api("jobs");const box=$("#jobs");const seen=new Set();
+    const {jobs}=await api("jobs");const box=$("#jobs");const seen=new Set();notifyChanges(jobs);
     jobs.forEach((j,i)=>{
       seen.add(j.id);let d=els.get(j.id);
       if(!d){d=mkJob(j);els.set(j.id,d);}
@@ -350,7 +417,7 @@ async function refresh(){
       if(box.children[i]!==d)box.insertBefore(d,box.children[i]||null);
     });
     for(const [id,d] of els)if(!seen.has(id)){d.remove();els.delete(id);}
-    $("#empty").classList.toggle("hidden",jobs.length>0);
+    $("#empty").classList.toggle("hidden",jobs.length>0);updateStats(jobs);applyHistFilter();
   }catch(e){}
 }
 setInterval(refresh,800);refresh();
@@ -362,7 +429,7 @@ function applyTheme(t){const r=document.documentElement;if(t==="auto")r.removeAt
 try{applyTheme(localStorage.getItem("theme")||"auto");}catch{}
 async function loadSettings(){
   const {settings:s,version,ffmpeg}=await api("settings");
-  $("#sFolder").value=s.folder;$("#sConc").value=s.concurrent;$("#sRate").value=s.rate_kb;$("#sBrowser").value=s.browser;
+  $("#sFolder").value=s.folder;$("#sConc").value=s.concurrent;$("#sRate").value=s.rate_kb;$("#sBrowser").value=s.browser;$("#sProxy").value=s.proxy||"";$("#sContainer").value=s.container||"mp4";$("#sSort").checked=!!s.sort_folders;
   try{$("#sTheme").value=localStorage.getItem("theme")||"auto";}catch{}
   $("#subs").checked=!!s.subs;$("#folderHint").textContent="الحفظ في: "+s.folder;
   $("#ver").textContent="yt-dlp "+version+(ffmpeg?" · ffmpeg ✔":" · ffmpeg غير موجود ✖");
@@ -371,7 +438,7 @@ $("#openSettings").onclick=async()=>{await loadSettings();$("#dlg").showModal();
 $("#closeSet").onclick=()=>$("#dlg").close();
 $("#saveSet").onclick=async()=>{
   try{
-    await api("settings",{folder:$("#sFolder").value,concurrent:+$("#sConc").value||2,rate_kb:+$("#sRate").value||0,browser:$("#sBrowser").value,subs:$("#subs").checked});
+    await api("settings",{folder:$("#sFolder").value,concurrent:+$("#sConc").value||2,rate_kb:+$("#sRate").value||0,browser:$("#sBrowser").value,proxy:$("#sProxy").value,container:$("#sContainer").value,sort_folders:$("#sSort").checked,subs:$("#subs").checked});
     applyTheme($("#sTheme").value);await loadSettings();$("#dlg").close();toast("تم الحفظ ✔");
   }catch(e){toast(e.message,true);}
 };
@@ -379,6 +446,87 @@ $("#subs").onchange=()=>api("settings",{subs:$("#subs").checked}).catch(()=>{});
 $("#upd").onclick=async()=>{const b=$("#upd");b.disabled=true;b.textContent="جاري التحديث...";
   try{toast((await api("update",{})).message);}catch(e){toast(e.message,true);}
   b.disabled=false;b.textContent="تحديث yt-dlp";};
+// ---------- وضع الرابط / البحث ----------
+document.querySelectorAll(".seg-b").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll(".seg-b").forEach(x=>x.classList.toggle("on",x===b));
+  const s=b.dataset.mode==="search";
+  $("#linkMode").classList.toggle("hidden",s);$("#searchMode").classList.toggle("hidden",!s);
+  (s?$("#q"):$("#urls")).focus();
+});
+async function doSearch(){
+  const q=$("#q").value.trim();if(!q)return;
+  const btn=$("#doSearch");btn.disabled=true;btn.innerHTML='<span class="spin"></span>';
+  const box=$("#results");box.replaceChildren();
+  try{
+    const {results}=await api("search",{q,source:$("#qsrc").value});
+    if(!results.length){box.textContent="لا توجد نتائج.";}
+    results.forEach(r=>{
+      const c=document.createElement("div");c.className="res";
+      const im=document.createElement("img");im.referrerPolicy="no-referrer";im.alt="";if(r.thumbnail)im.src=r.thumbnail;im.onerror=()=>im.style.visibility="hidden";
+      const t=document.createElement("div");t.className="rt";t.textContent=r.title;t.title=r.title;
+      const m=document.createElement("div");m.className="rm";m.textContent=[r.channel,fmtDur(r.duration)].filter(Boolean).join(" · ");
+      const b=document.createElement("button");b.className="btn sm primary";b.textContent="اختيار الجودة ⬇";
+      b.onclick=()=>{$("#urls").value=r.url;document.querySelector('.seg-b[data-mode=link]').click();analyze();};
+      c.append(im,t,m,b);box.append(c);
+    });
+  }catch(e){toast(e.message,true);}
+  finally{btn.disabled=false;btn.textContent="بحث";}
+}
+$("#doSearch").onclick=doSearch;
+$("#q").addEventListener("keydown",e=>{if(e.key==="Enter")doSearch();});
+
+// ---------- اكتشاف الرابط من الحافظة ----------
+let lastClip="";
+async function checkClip(){
+  try{
+    if(!document.hasFocus())return;
+    const t=((await navigator.clipboard.readText())||"").trim();
+    if(!/^https?:\/\/\S+$/i.test(t)||t===lastClip||t===$("#urls").value.trim())return;
+    lastClip=t;$("#clipText").textContent="رابط جديد في الحافظة: "+(t.length>70?t.slice(0,70)+"…":t);
+    $("#clipBanner").dataset.url=t;$("#clipBanner").classList.remove("hidden");
+  }catch{}
+}
+window.addEventListener("focus",checkClip);
+$("#clipGo").onclick=()=>{$("#urls").value=$("#clipBanner").dataset.url;$("#clipBanner").classList.add("hidden");document.querySelector('.seg-b[data-mode=link]').click();analyze();};
+$("#clipX").onclick=()=>$("#clipBanner").classList.add("hidden");
+
+// ---------- استيراد وسحب وإفلات ----------
+$("#fileIn").onchange=async e=>{const f=e.target.files[0];if(!f)return;$("#urls").value=await f.text();e.target.value="";analyze();};
+["dragover","drop"].forEach(ev=>document.addEventListener(ev,async e=>{
+  e.preventDefault();if(ev!=="drop")return;
+  const f=e.dataTransfer.files&&e.dataTransfer.files[0];
+  const t=f?await f.text():(e.dataTransfer.getData("text/uri-list")||e.dataTransfer.getData("text/plain"));
+  if(t){$("#urls").value=t;document.querySelector('.seg-b[data-mode=link]').click();analyze();}
+}));
+
+// ---------- قص المقطع ----------
+function toSecs(s){s=(s||"").trim();if(!s)return 0;const p=s.split(":").map(Number);if(p.some(x=>isNaN(x)||x<0))return NaN;return p.reduce((a,x)=>a*60+x,0);}
+$("#trimOn").onchange=()=>$("#trimFields").classList.toggle("hidden",!$("#trimOn").checked);
+
+// ---------- المشغّل الداخلي ----------
+function openPlayer(id,title,audio){
+  const box=$("#playerBox");box.replaceChildren();
+  const el=document.createElement(audio?"audio":"video");el.controls=true;el.autoplay=true;el.style.width="100%";
+  el.src="/media/"+encodeURIComponent(id)+"?k="+encodeURIComponent(TOKEN);
+  el.onerror=()=>toast("هذه الصيغة لا تُشغَّل داخل البرنامج، استخدم «فتح الملف».",true);
+  box.append(el);$("#playerTitle").textContent=title;$("#player").showModal();
+}
+$("#playerClose").onclick=()=>$("#player").close();
+$("#player").addEventListener("close",()=>$("#playerBox").replaceChildren());
+
+// ---------- إشعار الانتهاء + إحصائيات + بحث في السجل ----------
+const prevStat=new Map();let beepCtx;
+function beep(){try{beepCtx=beepCtx||new AudioContext();const o=beepCtx.createOscillator(),g=beepCtx.createGain();o.connect(g);g.connect(beepCtx.destination);o.frequency.value=880;g.gain.value=.08;o.start();o.stop(beepCtx.currentTime+.18);}catch{}}
+function notifyChanges(jobs){
+  jobs.forEach(j=>{const p=prevStat.get(j.id);prevStat.set(j.id,j.status);
+    if(p&&p!==j.status&&j.status==="done"){beep();toast("اكتمل: "+j.title.slice(0,60));
+      try{if(Notification.permission==="granted")new Notification("اكتمل التحميل",{body:j.title});}catch{}}});
+}
+document.addEventListener("click",()=>{try{if(Notification.permission==="default")Notification.requestPermission();}catch{}},{once:true});
+function updateStats(jobs){const d=jobs.filter(j=>j.status==="done");$("#stats").textContent=d.length?("تم تحميل "+d.length+" ملف · "+fmtSize(d.reduce((s,j)=>s+(j.size||0),0))):"";}
+function applyHistFilter(){const q=$("#hist").value.trim().toLowerCase();els.forEach(d=>d.classList.toggle("hidden",!!q&&!d.querySelector(".j-title").textContent.toLowerCase().includes(q)));}
+$("#hist").oninput=applyHistFilter;
+
 loadSettings().catch(()=>{});
 setInterval(()=>api("ping").catch(()=>{}),5000);
 </script>

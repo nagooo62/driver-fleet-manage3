@@ -11,12 +11,12 @@ except Exception:
     FFMPEG = None  # لو عندك ffmpeg في النظام يشتغل برضو
 
 BEST, AUDIO = "best", "audio"
-AUDIO_KEYS = ("a_best", "mp3_320", "mp3_192", "mp3_128", "audio")
+AUDIO_KEYS = ("a_best", "mp3_320", "mp3_192", "mp3_128", "m4a", "flac", "wav", "audio")
 
 
 def key_label(key):
     k = str(key)
-    return {"best": "أعلى جودة", "a_best": "صوت أصلي", "audio": "MP3 192", "mp3_320": "MP3 320",
+    return {"best": "أعلى جودة", "a_best": "صوت أصلي", "audio": "MP3 192", "m4a": "M4A", "flac": "FLAC", "wav": "WAV", "mp3_320": "MP3 320",
             "mp3_192": "MP3 192", "mp3_128": "MP3 128"}.get(k, f"{k}p")
 ANSI = re.compile(r"\x1b\[[0-9;]*m")
 
@@ -59,12 +59,14 @@ def _fsize(f, dur=0):
     return int(n)
 
 
-def fetch_info(url, browser=""):
+def fetch_info(url, browser="", proxy=""):
     """يجلب معلومات الرابط بدون تحميل. يرجّع dict جاهز للواجهة."""
     opts = {"quiet": True, "no_warnings": True, "noplaylist": True,
             "extract_flat": "in_playlist", "skip_download": True}
     if browser:
         opts["cookiesfrombrowser"] = (browser,)
+    if proxy:
+        opts["proxy"] = proxy
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(url, download=False)
     if info.get("_type") == "playlist":
@@ -132,7 +134,10 @@ def audio_options(info):
     return [{"label": orig, "key": "a_best", "size": orig_size},
             {"label": "MP3  ·  320 kbps", "key": "mp3_320", "size": mp3(320)},
             {"label": "MP3  ·  192 kbps", "key": "mp3_192", "size": mp3(192)},
-            {"label": "MP3  ·  128 kbps", "key": "mp3_128", "size": mp3(128)}]
+            {"label": "MP3  ·  128 kbps", "key": "mp3_128", "size": mp3(128)},
+            {"label": "M4A (AAC)  ·  256 kbps", "key": "m4a", "size": mp3(256)},
+            {"label": "FLAC  ·  بدون فقد", "key": "flac", "size": mp3(900)},
+            {"label": "WAV  ·  غير مضغوط", "key": "wav", "size": mp3(1411)}]
 
 
 def build_opts(key, folder, hook=None, opts=None):
@@ -152,6 +157,15 @@ def build_opts(key, folder, hook=None, opts=None):
         o["ffmpeg_location"] = FFMPEG
     if opts.get("browser"):
         o["cookiesfrombrowser"] = (opts["browser"],)
+    if opts.get("proxy"):
+        o["proxy"] = opts["proxy"]
+    if opts.get("container") in ("mp4", "mkv", "webm"):
+        o["merge_output_format"] = opts["container"]
+    st, en = float(opts.get("start") or 0), float(opts.get("end") or 0)
+    if st or en:  # قص جزء من الفيديو (اسم الملف يحمل مدة القص كي لا يُتخطّى لو الفيديو كامل موجود)
+        o["outtmpl"] = o["outtmpl"].replace(".%(ext)s", f" [cut {int(st)}s-{(str(int(en)) + 's') if en else 'end'}].%(ext)s")
+        o["download_ranges"] = yt_dlp.utils.download_range_func(None, [(st, en if en else float("inf"))])
+        o["force_keyframes_at_cuts"] = True
     if opts.get("playlist_item"):  # عنصر واحد من قائمة/ألبوم حسب ترتيبه
         o["noplaylist"] = False
         o["playlist_items"] = str(int(opts["playlist_item"]))
@@ -164,6 +178,12 @@ def build_opts(key, folder, hook=None, opts=None):
     k = str(key)
     if k == "a_best":
         o["format"] = "bestaudio/best"
+    elif k in ("m4a", "flac", "wav"):
+        o["format"] = "bestaudio/best"
+        pp = {"key": "FFmpegExtractAudio", "preferredcodec": k}
+        if k == "m4a":
+            pp["preferredquality"] = "256"
+        o["postprocessors"].insert(0, pp)
     elif k == AUDIO or k.startswith("mp3_"):
         q = k.split("_")[1] if "_" in k else "192"
         o["format"] = "bestaudio/best"
@@ -175,6 +195,31 @@ def build_opts(key, folder, hook=None, opts=None):
         h = int(k)
         o["format"] = f"bestvideo[height<={h}]+bestaudio/best[height<={h}]/best"
     return o
+
+
+def search(query, source="youtube", n=12, browser="", proxy=""):
+    """بحث داخل المواقع (يوتيوب / ساوند كلاود) بدون فتح المتصفح."""
+    prefix = {"youtube": "ytsearch", "soundcloud": "scsearch"}.get(source, "ytsearch")
+    opts = {"quiet": True, "no_warnings": True, "extract_flat": True, "skip_download": True}
+    if browser:
+        opts["cookiesfrombrowser"] = (browser,)
+    if proxy:
+        opts["proxy"] = proxy
+    with yt_dlp.YoutubeDL(opts) as ydl:
+        info = ydl.extract_info(f"{prefix}{int(n)}:{query}", download=False)
+    out = []
+    for e in info.get("entries") or []:
+        if not e:
+            continue
+        url = e.get("webpage_url") or e.get("url") or ""
+        if not url.startswith("http"):
+            continue
+        thumbs = e.get("thumbnails") or []
+        out.append({"url": url, "title": e.get("title") or url,
+                    "channel": e.get("channel") or e.get("uploader") or "",
+                    "duration": e.get("duration") or 0,
+                    "thumbnail": e.get("thumbnail") or (thumbs[-1].get("url") if thumbs else "") or ""})
+    return out
 
 
 def _final_path(info):
