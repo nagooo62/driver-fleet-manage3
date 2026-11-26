@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="ui-version" content="8">
+<meta name="ui-version" content="9">
 <title>محمّل الفيديوهات</title>
 <style>
 :root{
@@ -223,6 +223,9 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
     <select id="sBrowser"><option value="">بدون</option><option>chrome</option><option>edge</option><option>firefox</option><option>brave</option><option>opera</option></select></div>
   <div class="f"><label>بروكسي (اختياري، مثال: http://127.0.0.1:8080 أو socks5://127.0.0.1:1080)</label><input type="text" id="sProxy" dir="ltr"></div>
   <div class="f"><label>ملف كوكيز cookies.txt (اختياري — يتجاوز فحص الحماية والمحتوى المقيّد؛ مثال: C:\Users\اسمك\cookies.txt)</label><input type="text" id="sCookie" dir="ltr"></div>
+  <div class="f"><label>🧩 رمز ربط إضافة المتصفح (الصقه في خيارات الإضافة مرة واحدة)</label>
+    <div class="row" style="margin:0"><input type="text" id="sExt" dir="ltr" readonly style="flex:1">
+      <button class="btn sm" id="extCopy">نسخ</button><button class="btn sm" id="extReset" title="يلغي الرمز القديم">تجديد</button></div></div>
   <div class="f"><label>صيغة حاوية الفيديو</label>
     <select id="sContainer"><option value="mp4">MP4 (الأكثر توافقاً)</option><option value="mkv">MKV</option><option value="webm">WebM</option></select></div>
   <div class="f"><label class="chk"><input type="checkbox" id="sSort"> فرز تلقائي: الفيديو في مجلد Video والصوت في مجلد Audio</label></div>
@@ -446,12 +449,12 @@ $("#openFolder").onclick=()=>api("open",{}).catch(e=>toast(e.message,true));
 function applyTheme(t){const r=document.documentElement;if(t==="auto")r.removeAttribute("data-theme");else r.setAttribute("data-theme",t);try{localStorage.setItem("theme",t);}catch{}}
 try{applyTheme(localStorage.getItem("theme")||"auto");}catch{}
 async function loadSettings(){
-  const {settings:s,version,ffmpeg,impersonate,phantomjs,phantomjs_detail,system_proxy}=await api("settings");
+  const {settings:s,version,ffmpeg,impersonate,phantomjs,phantomjs_detail,system_proxy,ext_token}=await api("settings");
   $("#sFolder").value=s.folder;$("#sConc").value=s.concurrent;$("#sRate").value=s.rate_kb;$("#sConn").value=s.connections||8;$("#sBrowser").value=s.browser;$("#sProxy").value=s.proxy||"";$("#sContainer").value=s.container||"mp4";$("#sSort").checked=!!s.sort_folders;
   try{$("#sTheme").value=localStorage.getItem("theme")||"auto";}catch{}
   $("#subs").checked=!!s.subs;$("#folderHint").textContent="الحفظ في: "+s.folder;
   $("#ver").textContent="yt-dlp "+version+(ffmpeg?" · ffmpeg ✔":" · ffmpeg غير موجود ✖")+(impersonate?" · انتحال المتصفح ✔":" · انتحال المتصفح ✖ (نفّذ run.bat ليثبّت curl_cffi)")+(phantomjs?" · PhantomJS ✔ "+(phantomjs_detail||""):" · PhantomJS ✖ — "+(phantomjs_detail||""))+(system_proxy?" · بروكسي النظام: "+system_proxy:" · بروكسي النظام: لا يوجد");
-  $("#instPhantom").classList.toggle("hidden",!!phantomjs);$("#sCookie").value=s.cookiefile||"";
+  $("#instPhantom").classList.toggle("hidden",!!phantomjs);$("#sCookie").value=s.cookiefile||"";$("#sExt").value=ext_token||"";
 }
 $("#openSettings").onclick=async()=>{await loadSettings();$("#dlg").showModal();};
 $("#closeSet").onclick=()=>$("#dlg").close();
@@ -475,6 +478,9 @@ $("#instPhantom").onclick=async()=>{
     }catch(e){}
   },700);
 };
+$("#extCopy").onclick=()=>navigator.clipboard.writeText($("#sExt").value).then(()=>toast("تم نسخ الرمز ✔")).catch(()=>{$("#sExt").select();toast("حدّد الرمز وانسخه بـ Ctrl+C",true);});
+$("#extReset").onclick=async()=>{if(!confirm("تجديد الرمز سيفصل الإضافة حتى تلصق الرمز الجديد. متابعة؟"))return;
+  try{$("#sExt").value=(await api("ext-token-reset",{})).ext_token;toast("تم التجديد ✔");}catch(e){toast(e.message,true);}};
 $("#upd").onclick=async()=>{const b=$("#upd");b.disabled=true;b.textContent="جاري التحديث...";
   try{toast((await api("update",{})).message);}catch(e){toast(e.message,true);}
   b.disabled=false;b.textContent="تحديث yt-dlp";};

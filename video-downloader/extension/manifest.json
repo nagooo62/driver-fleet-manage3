@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "محمّل الفيديوهات — زر التحميل",
+  "short_name": "محمّل الفيديوهات",
+  "version": "1.0.0",
+  "description": "يظهر زر تحميل بجانب الفيديو، وعند الضغط عليه يعرض الجودات ويرسل التحميل لبرنامج محمّل الفيديوهات على جهازك.",
+  "icons": { "16": "icons/icon16.png", "32": "icons/icon32.png", "48": "icons/icon48.png", "128": "icons/icon128.png" },
+  "permissions": ["storage", "contextMenus"],
+  "host_permissions": ["http://127.0.0.1/*", "http://localhost/*"],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    { "matches": ["<all_urls>"], "js": ["content.js"], "run_at": "document_idle" }
+  ],
+  "action": {
+    "default_title": "محمّل الفيديوهات",
+    "default_popup": "popup.html",
+    "default_icon": { "16": "icons/icon16.png", "32": "icons/icon32.png", "48": "icons/icon48.png" }
+  },
+  "options_page": "options.html"
+}

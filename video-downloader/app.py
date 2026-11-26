@@ -48,7 +48,8 @@ DEFAULTS = {"folder": os.path.join(os.path.expanduser("~"), "Downloads", "VideoD
             "cookiefile": ""}
 
 
-UI_VERSION = 8  # رقم إصدار الواجهة المطلوب (index.html يحمل meta ui-version)
+UI_VERSION = 9
+APP_VERSION = "2026.11.26"  # رقم إصدار الواجهة المطلوب (index.html يحمل meta ui-version)
 
 
 def _ui_candidates():
@@ -111,6 +112,7 @@ class Manager:
         self.settings = dict(DEFAULTS)
         self.sem = threading.Semaphore(2)
         self.last_ping = time.time()
+        self.ext_token = ""
         self._load()
 
     # ---- حفظ/تحميل ----
@@ -119,6 +121,7 @@ class Manager:
             with open(STATE_FILE, encoding="utf-8") as f:
                 data = json.load(f)
             self.settings.update(data.get("settings", {}))
+            self.ext_token = data.get("ext_token", "")
             for j in data.get("jobs", []):
                 if j.get("status") in self.ACTIVE:  # كان شغّالاً عند الإغلاق -> يصير متوقفاً ويمكن استئنافه
                     j.update(status="paused", speed=0, eta=0, note="أُوقف عند إغلاق البرنامج — اضغط «استئناف» ليكمل")
@@ -127,10 +130,12 @@ class Manager:
         except Exception:
             pass
         self.sem = threading.Semaphore(max(1, int(self.settings["concurrent"])))
+        if not self.ext_token:
+            self.ext_token = secrets.token_hex(8)  # رمز ربط إضافة المتصفح (يبقى ثابتاً بين التشغيلات)
 
     def save(self):
         with self.lock:
-            data = {"settings": self.settings, "jobs": list(self.jobs.values())[-200:]}
+            data = {"settings": self.settings, "ext_token": self.ext_token, "jobs": list(self.jobs.values())[-200:]}
             blob = json.dumps(data, ensure_ascii=False, default=list)
         tmp = STATE_FILE + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
@@ -497,9 +502,34 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
 
+    _cors_origin = None
+
+    def _ext_origin(self):
+        o = self.headers.get("Origin") or ""
+        return o if o.startswith(("chrome-extension://", "moz-extension://")) else None
+
+    def _ext_ok(self):
+        t = self.headers.get("X-Ext-Token") or ""
+        return bool(t) and bool(M.ext_token) and secrets.compare_digest(t, M.ext_token)
+
+    def do_OPTIONS(self):  # preflight لإضافة المتصفح فقط
+        o = self._ext_origin()
+        if not self._host_ok() or not o or not self.path.startswith("/ext/"):
+            return self._send(403, {"error": "forbidden"})
+        self.send_response(204)
+        self.send_header("Access-Control-Allow-Origin", o)
+        self.send_header("Access-Control-Allow-Headers", "X-Ext-Token, Content-Type")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Vary", "Origin")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
     def _send(self, code, body, ctype="application/json; charset=utf-8"):
         data = body if isinstance(body, bytes) else json.dumps(body, ensure_ascii=False).encode()
         self.send_response(code)
+        if self._cors_origin:
+            self.send_header("Access-Control-Allow-Origin", self._cors_origin)
+            self.send_header("Vary", "Origin")
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(data)))
         self.send_header("Cache-Control", "no-store")
@@ -563,6 +593,13 @@ class Handler(BaseHTTPRequestHandler):
             if not secrets.compare_digest(k, TOKEN):
                 return self._send(403, {"error": "forbidden"})
             return self._serve_media(sp.path[len("/media/"):])
+        if sp.path.startswith("/ext/"):
+            self._cors_origin = self._ext_origin()
+            if not self._ext_ok():
+                return self._send(403, {"error": "forbidden"})
+            if sp.path == "/ext/ping":
+                return self._send(200, {"ok": True, "app": "video-downloader", "version": APP_VERSION})
+            return self._send(404, {"error": "not found"})
         if self.path in ("/", "/index.html"):
             html = load_ui().replace("__TOKEN__", TOKEN)
             return self._send(200, html.encode(), "text/html; charset=utf-8")
@@ -575,7 +612,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, {"settings": M.settings, "version": yt_dlp.version.__version__,
                                     "ffmpeg": bool(core.FFMPEG), "impersonate": bool(core.IMPERSONATE),
                                     "phantomjs": ps["found"], "phantomjs_detail": ps["detail"],
-                                    "system_proxy": core.system_proxy("https://example.com")})
+                                    "system_proxy": core.system_proxy("https://example.com"),
+                                    "ext_token": M.ext_token})
         if self.path == "/api/phantom-progress":
             return self._send(200, dict(PH_PROGRESS))
         if self.path == "/api/ping":
@@ -583,7 +621,14 @@ class Handler(BaseHTTPRequestHandler):
         self._send(404, {"error": "not found"})
 
     def do_POST(self):
-        if not self._host_ok() or self.headers.get("X-Token") != TOKEN:
+        if not self._host_ok():
+            return self._send(403, {"error": "forbidden"})
+        ext = self.path.startswith("/ext/")
+        if ext:  # من إضافة المتصفح: برمز الربط، ولمسارين فقط (info, download)
+            self._cors_origin = self._ext_origin()
+            if not self._ext_ok():
+                return self._send(403, {"error": "forbidden"})
+        elif self.headers.get("X-Token") != TOKEN:
             return self._send(403, {"error": "forbidden"})
         M.last_ping = time.time()
         try:
@@ -591,7 +636,13 @@ class Handler(BaseHTTPRequestHandler):
             if n > 1_000_000:
                 return self._send(413, {"error": "too large"})
             body = json.loads(self.rfile.read(n) or b"{}")
-            route = self.path[len("/api/"):]
+            route = self.path[len("/ext/"):] if ext else self.path[len("/api/"):]
+            if ext and route not in ("info", "download"):
+                return self._send(404, {"error": "not found"})
+            if route == "ext-token-reset":
+                M.ext_token = secrets.token_hex(8)
+                M.save()
+                return self._send(200, {"ext_token": M.ext_token})
             if route == "info":
                 urls = valid_urls([body.get("url")])
                 if not urls:

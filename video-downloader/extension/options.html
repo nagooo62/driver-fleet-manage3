@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>خيارات محمّل الفيديوهات</title>
+<style>
+  body{margin:0;background:#f4f6fb;color:#18202e;font:15px/1.7 "Segoe UI",Tahoma,system-ui,sans-serif}
+  @media (prefers-color-scheme:dark){body{background:#0e1320;color:#e8ecf6}.c{background:#161d2e;border-color:#25304a}input{background:#0e1320;color:#e8ecf6;border-color:#25304a}}
+  .c{max-width:560px;margin:30px auto;background:#fff;border:1px solid #e3e8f0;border-radius:16px;padding:22px}
+  h1{font-size:19px;margin:0 0 6px}label{display:block;margin:14px 0 4px;font-weight:600}
+  input{width:100%;padding:10px 12px;border:1px solid #e3e8f0;border-radius:10px;font:inherit;direction:ltr}
+  button{margin-top:14px;border:0;border-radius:10px;padding:10px 20px;font:inherit;font-weight:700;color:#fff;cursor:pointer;background:linear-gradient(135deg,#4f6df5,#7c4dff)}
+  .hint{opacity:.75;font-size:13px}.ok{color:#12a150;font-weight:700}.bad{color:#d92d20;font-weight:700}
+  ol{padding-inline-start:20px}
+</style></head>
+<body><div class="c">
+  <h1>🧩 ربط الإضافة ببرنامج محمّل الفيديوهات</h1>
+  <ol class="hint"><li>شغّل البرنامج (run.bat).</li><li>افتح البرنامج ← ⚙ الإعدادات.</li><li>انسخ «رمز ربط إضافة المتصفح» والصقه هنا.</li></ol>
+  <label for="token">رمز الربط</label><input id="token" autocomplete="off" spellcheck="false">
+  <label for="port">منفذ البرنامج (الافتراضي 8765)</label><input id="port" type="number" min="1" max="65535">
+  <button id="save">حفظ واختبار الاتصال</button>
+  <p id="res"></p>
+</div><script src="options.js"></script></body></html>
