@@ -25,7 +25,33 @@ os.makedirs(APP_DIR, exist_ok=True)
 if sys.stdout is None or sys.stderr is None:  # نسخة exe بدون نافذة سوداء
     sys.stdout = sys.stderr = open(os.path.join(APP_DIR, "log.txt"), "a", encoding="utf-8")
 
-import yt_dlp  # noqa: E402
+UPDATE_ROOT = os.path.join(APP_DIR, "ytdlp_update")
+
+
+def _apply_ytdlp_update():
+    """لو نزّل المستخدم نسخة أحدث من yt-dlp من داخل البرنامج نستخدمها بدل المدمجة."""
+    try:
+        with open(os.path.join(UPDATE_ROOT, "current.txt"), encoding="utf-8") as f:
+            ver = f.read().strip()
+        p = os.path.join(UPDATE_ROOT, ver)
+        if ver and os.path.isfile(os.path.join(p, "yt_dlp", "__init__.py")):
+            sys.path.insert(0, p)
+    except OSError:
+        pass
+
+
+_apply_ytdlp_update()
+try:
+    import yt_dlp  # noqa: E402
+except Exception:  # تحديث تالف -> ارجع للنسخة المدمجة
+    sys.path[:] = [p for p in sys.path if not p.startswith(UPDATE_ROOT)]
+    for _m in [m for m in sys.modules if m == "yt_dlp" or m.startswith("yt_dlp.")]:
+        del sys.modules[_m]
+    try:
+        os.remove(os.path.join(UPDATE_ROOT, "current.txt"))
+    except OSError:
+        pass
+    import yt_dlp  # noqa: E402
 import core  # noqa: E402
 
 STATE_FILE = os.path.join(APP_DIR, "state.json")
@@ -33,11 +59,14 @@ APP_HOME = os.path.dirname(os.path.abspath(__file__))
 TOOLS_DIR = os.path.join(APP_DIR, "tools")  # أدوات مساعدة (مثل phantomjs) تُضاف تلقائياً إلى PATH
 os.makedirs(TOOLS_DIR, exist_ok=True)
 TOOLS_DIRS = [TOOLS_DIR, os.path.join(APP_HOME, "tools")]  # الثاني: مجلد tools بجانب البرنامج
+if getattr(sys, "frozen", False):  # النسخة المثبّتة: ويقبل أيضاً مجلد tools بجوار exe
+    TOOLS_DIRS.append(os.path.join(os.path.dirname(sys.executable), "tools"))
 os.environ["PATH"] = os.pathsep.join(TOOLS_DIRS) + os.pathsep + os.environ.get("PATH", "")
 PH_PROGRESS = {"state": "idle", "done": 0, "total": 18193653, "msg": ""}
 PHANTOM_URLS = ["https://github.com/Medium/phantomjs/releases/download/v2.1.1/phantomjs-2.1.1-windows.zip",
                 "https://bitbucket.org/ariya/phantomjs/downloads/phantomjs-2.1.1-windows.zip"]
 IS_WIN = sys.platform.startswith("win")
+NO_WINDOW = 0x08000000 if IS_WIN else 0  # CREATE_NO_WINDOW: لا تُظهر نافذة سوداء لحظية
 PHANTOM_SHA256 = "d9fb05623d6b26d3654d008eab3adafd1f6350433dfd16138c46161f42c7dcc8"  # نفس البصمة من مصدرين مستقلين
 TOKEN = secrets.token_urlsafe(24)
 IDLE_EXIT_SECONDS = 150
@@ -48,7 +77,7 @@ DEFAULTS = {"folder": os.path.join(os.path.expanduser("~"), "Downloads", "VideoD
             "cookiefile": ""}
 
 
-UI_VERSION = 9
+UI_VERSION = 11
 APP_VERSION = "2026.11.26"  # رقم إصدار الواجهة المطلوب (index.html يحمل meta ui-version)
 
 
@@ -296,6 +325,7 @@ class Manager:
                     size = os.path.getsize(path) if path and os.path.exists(path) else 0
                     self._set(jid, status="done", pct=100, speed=0, eta=0, file=path, size=size, note="")
                     parts.clear()
+                    notify_done(self.jobs[jid]["title"])
                     break
                 except yt_dlp.utils.DownloadCancelled:
                     self._finish_stop(jid)
@@ -363,7 +393,7 @@ def phantom_status():
         here = [n for d in TOOLS_DIRS for n in ("phantomjs.exe", "phantomjs") if os.path.isfile(os.path.join(d, n))]
         return {"found": False, "detail": "الملف موجود في مجلد الأدوات لكن النظام لا يراه، أعد تشغيل البرنامج" if here else "غير مثبّت"}
     try:
-        r = subprocess.run([exe, "-v"], capture_output=True, text=True, timeout=15)
+        r = subprocess.run([exe, "-v"], capture_output=True, text=True, timeout=15, creationflags=NO_WINDOW)
     except Exception as e:  # noqa: BLE001
         return {"found": False, "detail": f"موجود لكن لا يعمل: {str(e)[:80]}"}
     if r.returncode == 0:
@@ -452,6 +482,72 @@ def _phantom_worker():
         PH_PROGRESS.update(state="error", msg=str(e))
 
 
+DENO_URL = "https://github.com/denoland/deno/releases/latest/download/deno-x86_64-pc-windows-msvc.zip"
+DN_PROGRESS = {"state": "idle", "done": 0, "total": 0, "msg": ""}
+
+
+def deno_status():
+    """Deno = محرك JavaScript يحتاجه yt-dlp لاستخراج جودات يوتيوب كاملة."""
+    exe = shutil.which("deno")
+    if not exe:
+        return {"found": False, "detail": "غير مثبّت"}
+    try:
+        r = subprocess.run([exe, "--version"], capture_output=True, text=True, timeout=15, creationflags=NO_WINDOW)
+    except Exception as e:  # noqa: BLE001
+        return {"found": False, "detail": f"موجود لكن لا يعمل: {str(e)[:60]}"}
+    if r.returncode != 0:
+        return {"found": False, "detail": f"موجود لكنه لا يعمل (رمز {r.returncode & 0xFFFFFFFF:#x})"}
+    parts = (r.stdout or "").split()
+    return {"found": True, "detail": parts[1] if len(parts) > 1 else "يعمل"}
+
+
+def install_deno(progress=None):
+    """ينزّل Deno الرسمي (ويندوز) ويتحقق من البصمة المنشورة معه، ثم يضعه في مجلد الأدوات."""
+    if not IS_WIN:
+        raise RuntimeError("التثبيت التلقائي لويندوز فقط. على لينكس/ماك ثبّت deno من deno.com.")
+    url = os.environ.get("VD_DENO_URL") or DENO_URL
+    upd = (lambda **kw: progress.update(kw)) if progress is not None else (lambda **kw: None)
+    op = _net_opener()
+    try:
+        upd(msg="جاري تنزيل Deno...", done=0)
+        deadline, chunks, got = time.monotonic() + 300, [], 0
+        with op.open(urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"}), timeout=30) as r:
+            upd(total=int(r.headers.get("Content-Length") or 43_000_000))
+            while True:
+                if time.monotonic() > deadline:
+                    raise TimeoutError("استغرق التنزيل أكثر من 5 دقائق")
+                b = r.read(262144)
+                if not b:
+                    break
+                chunks.append(b)
+                got += len(b)
+                upd(done=got)
+                if got > 150_000_000:
+                    raise ValueError("الملف أكبر من المتوقع")
+        data = b"".join(chunks)
+        with op.open(urllib.request.Request(url + ".sha256sum", headers={"User-Agent": "Mozilla/5.0"}), timeout=30) as r:
+            m = re.search(r"\b([0-9a-fA-F]{64})\b", r.read(4096).decode("utf-8", "ignore"))
+        if not m:
+            raise RuntimeError("تعذّر قراءة بصمة التحقق المنشورة")
+        if hashlib.sha256(data).hexdigest() != m.group(1).lower():
+            raise RuntimeError("بصمة الملف لا تطابق المنشورة، تم رفضه")
+        tmp = os.path.join(TOOLS_DIR, "deno.exe.tmp")
+        with zipfile.ZipFile(io.BytesIO(data)) as z, z.open("deno.exe") as src, open(tmp, "wb") as dst:
+            shutil.copyfileobj(src, dst)
+        os.replace(tmp, os.path.join(TOOLS_DIR, "deno.exe"))
+        return "تم تثبيت Deno ✔ — أعد تشغيل البرنامج ليستفيد يوتيوب منه."
+    except Exception as e:  # noqa: BLE001
+        raise RuntimeError(f"تعذّر تثبيت Deno ({str(e)[:120]}). جرّب VPN أو بروكسي في الإعدادات ثم أعد الضغط.") from None
+
+
+def _deno_worker():
+    DN_PROGRESS.update(state="running", done=0, msg="")
+    try:
+        DN_PROGRESS.update(state="done", msg=install_deno(DN_PROGRESS))
+    except Exception as e:  # noqa: BLE001
+        DN_PROGRESS.update(state="error", msg=str(e))
+
+
 def with_phantom(fn):
     """ينفّذ fn؛ وإن فشل لأن PhantomJS غير موجود، يثبّته تلقائياً (ويندوز) ويعيد المحاولة مرة واحدة،
     ولو بقي الخطأ يضيف سبب عدم اشتغال الأداة بدل ترك المستخدم يخمّن."""
@@ -477,14 +573,105 @@ def with_phantom(fn):
         raise RuntimeError(first + ("" if st["found"] else f"\n🔧 حالة PhantomJS: {st['detail']}")) from None
 
 
+def _net_opener():
+    px = M.settings.get("proxy") or core.system_proxy("https://pypi.org") or ""
+    return urllib.request.build_opener(
+        urllib.request.ProxyHandler({"http": px, "https": px}) if px.startswith("http") else urllib.request.ProxyHandler())
+
+
 def update_ytdlp():
+    """يحدّث yt-dlp بتنزيل أحدث wheel من PyPI والتحقق من بصمته. يعمل في النسخة المثبّتة بدون pip."""
+    op = _net_opener()
+    with op.open("https://pypi.org/pypi/yt-dlp/json", timeout=30) as r:
+        meta = json.load(r)
+    latest, cur = meta["info"]["version"], yt_dlp.version.__version__
+    if latest == cur and not os.environ.get("VD_FORCE_YTDLP_UPDATE"):
+        return {"message": f"أنت على أحدث نسخة ({cur}) ✔", "restart": False}
+    wheel = next((u for u in meta["urls"] if u["filename"].endswith("-py3-none-any.whl")), None)
+    if not wheel:
+        raise RuntimeError("لم أجد ملف التحديث على PyPI")
+    with op.open(wheel["url"], timeout=90) as r:
+        data = r.read(30_000_000)
+    if hashlib.sha256(data).hexdigest() != wheel["digests"]["sha256"]:
+        raise RuntimeError("بصمة ملف التحديث لا تطابق، تم رفضه")
+    os.makedirs(UPDATE_ROOT, exist_ok=True)
+    dest, tmp = os.path.join(UPDATE_ROOT, latest), os.path.join(UPDATE_ROOT, latest + ".tmp")
+    shutil.rmtree(tmp, ignore_errors=True)
+    os.makedirs(tmp)
+    root = os.path.abspath(tmp) + os.sep
+    with zipfile.ZipFile(io.BytesIO(data)) as z:
+        for n in z.namelist():
+            if not n.startswith("yt_dlp/") or n.endswith("/"):
+                continue
+            target = os.path.abspath(os.path.join(tmp, n))
+            if not target.startswith(root):
+                raise RuntimeError("ملف تحديث غير آمن")
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            with open(target, "wb") as f:
+                f.write(z.read(n))
+    if not os.path.isfile(os.path.join(tmp, "yt_dlp", "__init__.py")):
+        raise RuntimeError("ملف التحديث غير سليم")
+    shutil.rmtree(dest, ignore_errors=True)
+    os.replace(tmp, dest)
+    with open(os.path.join(UPDATE_ROOT, "current.txt"), "w", encoding="utf-8") as f:
+        f.write(latest)
+    for d in os.listdir(UPDATE_ROOT):  # نظّف النسخ القديمة
+        p = os.path.join(UPDATE_ROOT, d)
+        if d not in (latest, "current.txt") and os.path.isdir(p):
+            shutil.rmtree(p, ignore_errors=True)
+    return {"message": f"تم تنزيل yt-dlp {latest} (كانت {cur}).", "restart": True}
+
+
+def restart_app():
+    """يعيد تشغيل البرنامج بنفس الوسائط (بعد تحديث yt-dlp مثلاً)."""
+    args = [x for x in sys.argv[1:] if x != "--restarted"] + ["--restarted"]
+    cmd = [sys.executable, *args] if getattr(sys, "frozen", False) else [sys.executable, os.path.abspath(__file__), *args]
+    M.save()
+    subprocess.Popen(cmd, close_fds=True)
+    os._exit(0)
+
+
+RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
+
+
+def _autostart_cmd():
     if getattr(sys, "frozen", False):
-        raise RuntimeError("هذه نسخة exe مدمجة. لتحديث yt-dlp أعد بناء البرنامج بـ build_exe.bat")
-    r = subprocess.run([sys.executable, "-m", "pip", "install", "-U", "yt-dlp"],
-                       capture_output=True, text=True, timeout=300)
-    if r.returncode:
-        raise RuntimeError((r.stderr or r.stdout)[-300:])
-    return "تم التحديث. أعد تشغيل البرنامج لتفعيل النسخة الجديدة."
+        return f'"{sys.executable}" --background'
+    exe = sys.executable
+    pw = os.path.join(os.path.dirname(exe), "pythonw.exe")
+    return f'"{pw if os.path.isfile(pw) else exe}" "{os.path.abspath(__file__)}" --tray --background'
+
+
+def autostart_get():
+    """هل البرنامج يعمل مع ويندوز؟ (None لو النظام ليس ويندوز)."""
+    if not IS_WIN:
+        return None
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY) as k:
+            winreg.QueryValueEx(k, "VideoDownloader")
+        return True
+    except OSError:
+        return False
+
+
+def autostart_set(on):
+    import winreg
+    with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY, 0, winreg.KEY_SET_VALUE) as k:
+        if on:
+            winreg.SetValueEx(k, "VideoDownloader", 0, winreg.REG_SZ, _autostart_cmd())
+        else:
+            try:
+                winreg.DeleteValue(k, "VideoDownloader")
+            except FileNotFoundError:
+                pass
+
+
+def ext_dir():
+    for p in (resource("extension"), os.path.join(APP_HOME, "extension")):
+        if os.path.isfile(os.path.join(p, "manifest.json")):
+            return p
+    return ""
 
 
 def valid_urls(urls):
@@ -608,12 +795,15 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/api/jobs":
             return self._send(200, {"jobs": M.snapshot()})
         if self.path == "/api/settings":
-            ps = phantom_status()
+            ps, dn = phantom_status(), deno_status()
             return self._send(200, {"settings": M.settings, "version": yt_dlp.version.__version__,
                                     "ffmpeg": bool(core.FFMPEG), "impersonate": bool(core.IMPERSONATE),
-                                    "phantomjs": ps["found"], "phantomjs_detail": ps["detail"],
+                                    "deno": dn["found"], "deno_detail": dn["detail"], "phantomjs": ps["found"], "phantomjs_detail": ps["detail"],
                                     "system_proxy": core.system_proxy("https://example.com"),
-                                    "ext_token": M.ext_token})
+                                    "ext_token": M.ext_token, "autostart": autostart_get(), "ext_dir": ext_dir(),
+                                    "frozen": bool(getattr(sys, "frozen", False)), "tray": bool(TRAY["icon"])})
+        if self.path == "/api/deno-progress":
+            return self._send(200, dict(DN_PROGRESS))
         if self.path == "/api/phantom-progress":
             return self._send(200, dict(PH_PROGRESS))
         if self.path == "/api/ping":
@@ -709,12 +899,33 @@ class Handler(BaseHTTPRequestHandler):
                 if not u:
                     return self._send(400, {"error": "الصق رابطاً صالحاً أولاً"})
                 return self._send(200, core.diagnose(u[0], M.settings["proxy"]))
+            if route == "install-deno":
+                if DN_PROGRESS["state"] != "running":
+                    threading.Thread(target=_deno_worker, daemon=True).start()
+                return self._send(200, {"started": True})
             if route == "install-phantomjs":
                 if PH_PROGRESS["state"] != "running":
                     threading.Thread(target=_phantom_worker, daemon=True).start()
                 return self._send(200, {"started": True})
             if route == "update":
-                return self._send(200, {"message": update_ytdlp()})
+                return self._send(200, update_ytdlp())
+            if route == "restart":
+                threading.Timer(0.6, restart_app).start()
+                return self._send(200, {"ok": True})
+            if route == "autostart":
+                if not IS_WIN:
+                    return self._send(400, {"error": "متاح على ويندوز فقط"})
+                autostart_set(bool(body.get("on")))
+                return self._send(200, {"autostart": autostart_get()})
+            if route == "open-ext-folder":
+                d = ext_dir()
+                if not d:
+                    return self._send(400, {"error": "مجلد الإضافة غير موجود"})
+                if IS_WIN:
+                    subprocess.Popen(["explorer", os.path.normpath(d)])
+                else:
+                    subprocess.Popen(["open" if sys.platform == "darwin" else "xdg-open", d])
+                return self._send(200, {"ok": True})
             self._send(404, {"error": "not found"})
         except Exception as e:  # noqa: BLE001
             self._send(400, {"error": core.friendly_error(e)})
@@ -744,6 +955,72 @@ def open_ui(url):
     webbrowser.open(url)
 
 
+TRAY = {"icon": None}
+
+
+def notify_done(title):
+    """إشعار ويندوز عند اكتمال تحميل (في وضع شريط النظام)."""
+    try:
+        if TRAY["icon"]:
+            TRAY["icon"].notify((title or "")[:120], "اكتمل التحميل ✔")
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def tray_image(size=64):
+    from PIL import Image, ImageDraw
+    S = size * 4
+    grad = Image.new("RGBA", (S, S))
+    px = grad.load()
+    for y in range(S):
+        for x in range(S):
+            t = (x + y) / (2 * S)
+            px[x, y] = (int(79 + 45 * t), int(109 - 32 * t), 255, 255)
+    mask = Image.new("L", (S, S), 0)
+    ImageDraw.Draw(mask).rounded_rectangle([0, 0, S - 1, S - 1], radius=int(S * 0.24), fill=255)
+    img = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    img.paste(grad, (0, 0), mask)
+    d, w, cx = ImageDraw.Draw(img), S * 0.11, S / 2
+    d.rounded_rectangle([cx - w / 2, S * 0.2, cx + w / 2, S * 0.56], radius=w / 2, fill="white")
+    d.polygon([(S * 0.27, S * 0.5), (S * 0.73, S * 0.5), (cx, S * 0.76)], fill="white")
+    d.rounded_rectangle([S * 0.24, S * 0.8, S * 0.76, S * 0.86], radius=S * 0.03, fill="white")
+    return img.resize((size, size), Image.LANCZOS)
+
+
+def run_tray(port, background):
+    """أيقونة بجوار الساعة: فتح، مجلد التحميلات، التشغيل مع ويندوز، خروج. تبقي البرنامج يعمل في الخلفية."""
+    import pystray
+    url = f"http://127.0.0.1:{port}/"
+
+    def quit_app(icon, item):
+        if IS_WIN and M.active():
+            try:
+                import ctypes
+                if ctypes.windll.user32.MessageBoxW(
+                        0, "توجد تحميلات شغّالة. الخروج سيوقفها مؤقتاً (يمكنك استئنافها لاحقاً). متابعة؟",
+                        "محمّل الفيديوهات", 0x24) != 6:
+                    return
+            except Exception:  # noqa: BLE001
+                pass
+        M.save()
+        icon.stop()
+        os._exit(0)
+
+    items = [pystray.MenuItem("فتح البرنامج", lambda i, it: open_ui(url), default=True),
+             pystray.MenuItem("فتح مجلد التحميلات", lambda i, it: open_path(None))]
+    if IS_WIN:
+        items.append(pystray.MenuItem("التشغيل مع ويندوز", lambda i, it: autostart_set(not autostart_get()),
+                                      checked=lambda it: bool(autostart_get())))
+    items.append(pystray.MenuItem("خروج", quit_app))
+    # ويندوز يقبل العنوان العربي؛ واجهات لينكس القديمة (X11) لا تقبل إلا ASCII
+    icon = pystray.Icon("VideoDownloader", tray_image(), "محمّل الفيديوهات" if IS_WIN else "Video Downloader",
+                        pystray.Menu(*items))
+    TRAY["icon"] = icon
+    if not background:
+        threading.Thread(target=open_ui, args=(url,), daemon=True).start()
+    icon.run()
+
+
 def watchdog():
     """يقفل البرنامج لما تتقفل النافذة (لا نبضات) ولا يوجد تحميل شغّال."""
     time.sleep(60)
@@ -755,17 +1032,47 @@ def watchdog():
 
 
 def main():
+    args = sys.argv[1:]
+    background = "--background" in args
+    want_tray = "--tray" in args or bool(getattr(sys, "frozen", False))
     port = int(os.environ.get("VD_PORT") or 8765)
-    try:
-        httpd = ThreadingHTTPServer(("127.0.0.1", port), Handler)
-    except OSError:  # نسخة ثانية شغّالة -> افتح نافذتها
-        open_ui(f"http://127.0.0.1:{port}/")
+    url = f"http://127.0.0.1:{port}/"
+    httpd = None
+    for i in range(30 if "--restarted" in args else 1):  # بعد إعادة التشغيل ننتظر تحرّر المنفذ
+        try:
+            httpd = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+            break
+        except OSError:
+            time.sleep(0.5)
+    if httpd is None:  # نسخة ثانية شغّالة -> افتح نافذتها (إلا لو بدأنا مع ويندوز بالخلفية)
+        if not background:
+            open_ui(url)
         return
     httpd.daemon_threads = True
-    threading.Thread(target=watchdog, daemon=True).start()
-    threading.Thread(target=open_ui, args=(f"http://127.0.0.1:{port}/",), daemon=True).start()
     load_ui()
-    print(f"running on http://127.0.0.1:{port}/  |  UI file: {load_ui.last[0]} (v{load_ui.last[1]})", flush=True)
+    print(f"running on {url}  |  UI file: {load_ui.last[0]} (v{load_ui.last[1]})", flush=True)
+    tray_ok = False
+    if want_tray:
+        try:
+            import pystray  # noqa: F401
+            tray_ok = True
+        except Exception:  # noqa: BLE001
+            print("pystray not available: running without tray icon", flush=True)
+    if tray_ok:
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        try:
+            run_tray(port, background)  # يحجب حتى «خروج»
+            return
+        except Exception:  # noqa: BLE001
+            log_error("tray", "", traceback.format_exc())
+            threading.Thread(target=watchdog, daemon=True).start()
+            if not background:
+                open_ui(url)
+            threading.Event().wait()
+            return
+    threading.Thread(target=watchdog, daemon=True).start()
+    if not background:
+        threading.Thread(target=open_ui, args=(url,), daemon=True).start()
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

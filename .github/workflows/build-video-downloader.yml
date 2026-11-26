@@ -1,0 +1,73 @@
+name: Build Video Downloader (Windows)
+
+on:
+  push:
+    paths:
+      - "video-downloader/**"
+      - ".github/workflows/build-video-downloader.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: video-downloader
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build requirements
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-build.txt
+
+      - name: Build app (PyInstaller)
+        shell: cmd
+        run: >
+          pyinstaller --noconfirm --clean --windowed --name VideoDownloader --icon assets\app.ico
+          --add-data "static;static" --add-data "extension;extension"
+          --collect-all yt_dlp --collect-all yt_dlp_ejs --collect-all imageio_ffmpeg --collect-all curl_cffi
+          --collect-data certifi --collect-submodules pystray --exclude-module tkinter app.py
+
+      - name: Smoke test (start the built app and check it serves the UI)
+        shell: pwsh
+        env:
+          VD_NO_BROWSER: "1"
+          VD_PORT: "8799"
+        run: |
+          $env:VD_HOME = Join-Path $env:RUNNER_TEMP "vdhome"
+          $p = Start-Process -FilePath ".\dist\VideoDownloader\VideoDownloader.exe" -ArgumentList "--background" -PassThru
+          $ok = $false
+          for ($i = 0; $i -lt 60; $i++) {
+            Start-Sleep -Seconds 1
+            try {
+              $r = Invoke-WebRequest -Uri "http://127.0.0.1:8799/" -UseBasicParsing -TimeoutSec 3
+              if ($r.StatusCode -eq 200 -and $r.Content -match 'ui-version') { $ok = $true; break }
+            } catch {}
+          }
+          $log = Join-Path $env:VD_HOME "log.txt"
+          if (Test-Path $log) { Get-Content $log | Select-Object -Last 20 }
+          Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+          if (-not $ok) { throw "The built app did not serve the UI" }
+          Write-Host "Smoke test passed"
+
+      - name: Install Inno Setup
+        run: choco install innosetup -y --no-progress
+
+      - name: Build installer (Setup.exe)
+        run: '& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer\VideoDownloader.iss'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: VideoDownloader-Setup
+          path: video-downloader/dist-installer/VideoDownloader-Setup.exe
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: VideoDownloader-portable
+          path: video-downloader/dist/VideoDownloader

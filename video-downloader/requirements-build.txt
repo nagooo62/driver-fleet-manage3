@@ -1,0 +1,6 @@
+# مكتبات بناء التطبيق المثبّت (Setup.exe)
+yt-dlp[default,curl-cffi]
+imageio-ffmpeg
+pystray
+Pillow
+pyinstaller

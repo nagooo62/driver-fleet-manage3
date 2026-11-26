@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="ui-version" content="9">
+<meta name="ui-version" content="11">
 <title>محمّل الفيديوهات</title>
 <style>
 :root{
@@ -226,6 +226,10 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
   <div class="f"><label>🧩 رمز ربط إضافة المتصفح (الصقه في خيارات الإضافة مرة واحدة)</label>
     <div class="row" style="margin:0"><input type="text" id="sExt" dir="ltr" readonly style="flex:1">
       <button class="btn sm" id="extCopy">نسخ</button><button class="btn sm" id="extReset" title="يلغي الرمز القديم">تجديد</button></div></div>
+  <div class="f hidden" id="autoRow"><label class="chk"><input type="checkbox" id="sAuto"> 🚀 تشغيل البرنامج مع ويندوز (يعمل بالخلفية بجوار الساعة)</label></div>
+  <div class="f"><label>🧩 مجلد إضافة المتصفح (اختره في chrome://extensions ← Load unpacked)</label>
+    <div class="row" style="margin:0"><input type="text" id="sExtDir" dir="ltr" readonly style="flex:1">
+      <button class="btn sm" id="extOpen">فتح</button><button class="btn sm" id="extDirCopy">نسخ</button></div></div>
   <div class="f"><label>صيغة حاوية الفيديو</label>
     <select id="sContainer"><option value="mp4">MP4 (الأكثر توافقاً)</option><option value="mkv">MKV</option><option value="webm">WebM</option></select></div>
   <div class="f"><label class="chk"><input type="checkbox" id="sSort"> فرز تلقائي: الفيديو في مجلد Video والصوت في مجلد Audio</label></div>
@@ -237,6 +241,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
     <button class="btn" id="closeSet">إغلاق</button>
     <button class="btn" id="upd">تحديث yt-dlp</button>
     <button class="btn" id="instPhantom">تثبيت PhantomJS</button>
+    <button class="btn" id="instDeno">تثبيت دعم يوتيوب (Deno)</button>
     <button class="btn" id="diagBtn">🩺 فحص الاتصال</button>
   </div>
 </dialog>
@@ -449,12 +454,13 @@ $("#openFolder").onclick=()=>api("open",{}).catch(e=>toast(e.message,true));
 function applyTheme(t){const r=document.documentElement;if(t==="auto")r.removeAttribute("data-theme");else r.setAttribute("data-theme",t);try{localStorage.setItem("theme",t);}catch{}}
 try{applyTheme(localStorage.getItem("theme")||"auto");}catch{}
 async function loadSettings(){
-  const {settings:s,version,ffmpeg,impersonate,phantomjs,phantomjs_detail,system_proxy,ext_token}=await api("settings");
+  const {settings:s,version,ffmpeg,impersonate,phantomjs,phantomjs_detail,system_proxy,ext_token,autostart,ext_dir,deno,deno_detail}=await api("settings");
   $("#sFolder").value=s.folder;$("#sConc").value=s.concurrent;$("#sRate").value=s.rate_kb;$("#sConn").value=s.connections||8;$("#sBrowser").value=s.browser;$("#sProxy").value=s.proxy||"";$("#sContainer").value=s.container||"mp4";$("#sSort").checked=!!s.sort_folders;
   try{$("#sTheme").value=localStorage.getItem("theme")||"auto";}catch{}
   $("#subs").checked=!!s.subs;$("#folderHint").textContent="الحفظ في: "+s.folder;
-  $("#ver").textContent="yt-dlp "+version+(ffmpeg?" · ffmpeg ✔":" · ffmpeg غير موجود ✖")+(impersonate?" · انتحال المتصفح ✔":" · انتحال المتصفح ✖ (نفّذ run.bat ليثبّت curl_cffi)")+(phantomjs?" · PhantomJS ✔ "+(phantomjs_detail||""):" · PhantomJS ✖ — "+(phantomjs_detail||""))+(system_proxy?" · بروكسي النظام: "+system_proxy:" · بروكسي النظام: لا يوجد");
-  $("#instPhantom").classList.toggle("hidden",!!phantomjs);$("#sCookie").value=s.cookiefile||"";$("#sExt").value=ext_token||"";
+  $("#ver").textContent="yt-dlp "+version+(ffmpeg?" · ffmpeg ✔":" · ffmpeg غير موجود ✖")+(impersonate?" · انتحال المتصفح ✔":" · انتحال المتصفح ✖ (نفّذ run.bat ليثبّت curl_cffi)")+(phantomjs?" · PhantomJS ✔ "+(phantomjs_detail||""):" · PhantomJS ✖ — "+(phantomjs_detail||""))+(system_proxy?" · بروكسي النظام: "+system_proxy:" · بروكسي النظام: لا يوجد")+(deno?" · يوتيوب(Deno) ✔ "+(deno_detail||""):" · يوتيوب(Deno) ✖ — "+(deno_detail||""));
+  $("#instDeno").classList.toggle("hidden",!!deno);
+  $("#instPhantom").classList.toggle("hidden",!!phantomjs);$("#sCookie").value=s.cookiefile||"";$("#sExt").value=ext_token||"";$("#autoRow").classList.toggle("hidden",autostart===null||autostart===undefined);$("#sAuto").checked=!!autostart;$("#sExtDir").value=ext_dir||"غير موجود";
 }
 $("#openSettings").onclick=async()=>{await loadSettings();$("#dlg").showModal();};
 $("#closeSet").onclick=()=>$("#dlg").close();
@@ -465,24 +471,32 @@ $("#saveSet").onclick=async()=>{
   }catch(e){toast(e.message,true);}
 };
 $("#subs").onchange=()=>api("settings",{subs:$("#subs").checked}).catch(()=>{});
-$("#instPhantom").onclick=async()=>{
-  const b=$("#instPhantom");b.disabled=true;b.textContent="جاري البدء...";
-  try{await api("install-phantomjs",{});}catch(e){toast(e.message,true);b.disabled=false;b.textContent="تثبيت PhantomJS";return;}
-  const t=setInterval(async()=>{
-    try{
-      const p=await api("phantom-progress");
-      if(p.state==="running"){b.textContent=(p.msg||"جاري العمل")+(p.done?" — "+(p.done/1048576).toFixed(1)+" / "+(p.total/1048576).toFixed(1)+" MB":"");return;}
-      clearInterval(t);b.disabled=false;b.textContent="تثبيت PhantomJS";
-      if(p.state==="done"){toast(p.msg);loadSettings();}
-      else{$("#diagOut").textContent="⛔ "+p.msg;$("#diagDlg").showModal();}
-    }catch(e){}
-  },700);
-};
+function runInstall(btnSel, route, progRoute, label){
+  const b=$(btnSel);b.disabled=true;b.textContent="جاري البدء...";
+  api(route,{}).catch(e=>{toast(e.message,true);b.disabled=false;b.textContent=label;throw e;}).then(()=>{
+    const t=setInterval(async()=>{
+      try{
+        const p=await api(progRoute);
+        if(p.state==="running"){b.textContent=(p.msg||"جاري العمل")+(p.done?" — "+(p.done/1048576).toFixed(1)+" / "+(p.total/1048576).toFixed(1)+" MB":"");return;}
+        clearInterval(t);b.disabled=false;b.textContent=label;
+        if(p.state==="done"){toast(p.msg);loadSettings();}
+        else{$("#diagOut").textContent="⛔ "+p.msg;$("#diagDlg").showModal();}
+      }catch(e){}
+    },700);
+  }).catch(()=>{});
+}
+$("#instPhantom").onclick=()=>runInstall("#instPhantom","install-phantomjs","phantom-progress","تثبيت PhantomJS");
+$("#instDeno").onclick=()=>runInstall("#instDeno","install-deno","deno-progress","تثبيت دعم يوتيوب (Deno)");
 $("#extCopy").onclick=()=>navigator.clipboard.writeText($("#sExt").value).then(()=>toast("تم نسخ الرمز ✔")).catch(()=>{$("#sExt").select();toast("حدّد الرمز وانسخه بـ Ctrl+C",true);});
 $("#extReset").onclick=async()=>{if(!confirm("تجديد الرمز سيفصل الإضافة حتى تلصق الرمز الجديد. متابعة؟"))return;
   try{$("#sExt").value=(await api("ext-token-reset",{})).ext_token;toast("تم التجديد ✔");}catch(e){toast(e.message,true);}};
+$("#sAuto").onchange=()=>api("autostart",{on:$("#sAuto").checked}).then(()=>toast($("#sAuto").checked?"سيعمل البرنامج مع ويندوز ✔":"أُلغي التشغيل مع ويندوز")).catch(e=>{toast(e.message,true);$("#sAuto").checked=!$("#sAuto").checked;});
+$("#extOpen").onclick=()=>api("open-ext-folder",{}).catch(e=>toast(e.message,true));
+$("#extDirCopy").onclick=()=>navigator.clipboard.writeText($("#sExtDir").value).then(()=>toast("تم نسخ المسار ✔")).catch(()=>toast("حدّد المسار وانسخه",true));
 $("#upd").onclick=async()=>{const b=$("#upd");b.disabled=true;b.textContent="جاري التحديث...";
-  try{toast((await api("update",{})).message);}catch(e){toast(e.message,true);}
+  try{const r=await api("update",{});
+    if(r.restart&&confirm(r.message+"\nإعادة تشغيل البرنامج الآن لتفعيل التحديث؟")){await api("restart",{});toast("جاري إعادة التشغيل...");setTimeout(()=>location.reload(),6000);}
+    else toast(r.message);}catch(e){toast(e.message,true);}
   b.disabled=false;b.textContent="تحديث yt-dlp";};
 // ---------- وضع الرابط / البحث ----------
 document.querySelectorAll(".seg-b").forEach(b=>b.onclick=()=>{
