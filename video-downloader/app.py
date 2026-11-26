@@ -668,10 +668,32 @@ def autostart_set(on):
 
 
 def ext_dir():
-    for p in (resource("extension"), os.path.join(APP_HOME, "extension")):
+    """مجلد الإضافة: النسخة الثابتة في مجلد المستخدم أولاً (بلا _internal)، ثم المدمجة."""
+    for p in (os.path.join(APP_DIR, "extension"), resource("extension"), os.path.join(APP_HOME, "extension")):
         if os.path.isfile(os.path.join(p, "manifest.json")):
             return p
     return ""
+
+
+def ensure_ext_copy():
+    """ينسخ إضافة المتصفح إلى مجلد المستخدم (مسار ثابت لا يحوي _internal ويرفضه Chrome) ويحدّثه مع كل إصدار."""
+    src = next((p for p in (resource("extension"), os.path.join(APP_HOME, "extension"))
+                if os.path.isfile(os.path.join(p, "manifest.json"))), "")
+    dst = os.path.join(APP_DIR, "extension")
+    if not src or os.path.abspath(src) == os.path.abspath(dst):
+        return
+    try:
+        for root, _dirs, files in os.walk(src):
+            out = os.path.join(dst, os.path.relpath(root, src))
+            os.makedirs(out, exist_ok=True)
+            for f in files:
+                s, d = os.path.join(root, f), os.path.join(out, f)
+                if f.startswith("_"):
+                    continue
+                if not os.path.isfile(d) or open(s, "rb").read() != open(d, "rb").read():
+                    shutil.copy2(s, d)
+    except OSError:
+        log_error("ext-copy", "", traceback.format_exc())
 
 
 def valid_urls(urls):
@@ -1049,6 +1071,7 @@ def main():
             open_ui(url)
         return
     httpd.daemon_threads = True
+    ensure_ext_copy()
     load_ui()
     print(f"running on {url}  |  UI file: {load_ui.last[0]} (v{load_ui.last[1]})", flush=True)
     tray_ok = False
