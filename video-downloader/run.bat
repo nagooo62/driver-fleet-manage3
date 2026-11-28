@@ -22,7 +22,7 @@ echo Installing optional browser-impersonation support (fine if it fails)...
 %PY% -m pip install -q "yt-dlp[curl-cffi]"
 :start
 echo Starting... a window will open. Keep this black window open while using the app.
-%PY% app.py
+%PY% -X utf8 app.py
 echo.
 echo The app stopped. See the messages above.
 pause

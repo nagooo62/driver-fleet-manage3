@@ -2,7 +2,7 @@
 REM يبني التطبيق على جهازك (بديل عن بناء GitHub). يحتاج Python و(اختيارياً) Inno Setup لإنشاء Setup.exe
 cd /d "%~dp0"
 python -m pip install -r requirements-build.txt || goto :err
-pyinstaller --noconfirm --clean --windowed --name VideoDownloader --icon assets\app.ico ^
+pyinstaller --noconfirm --clean --windowed --python-option "X utf8" --name VideoDownloader --icon assets\app.ico ^
   --add-data "static;static" --add-data "extension;extension" ^
   --collect-all yt_dlp --collect-all yt_dlp_ejs --collect-all imageio_ffmpeg --collect-all curl_cffi ^
   --collect-data certifi --collect-submodules pystray --exclude-module tkinter app.py || goto :err

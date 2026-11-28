@@ -1,4 +1,12 @@
 """محمّل الفيديوهات - يشتغل محلياً على جهازك: خادم صغير + واجهة تفتح كنافذة تطبيق."""
+import sys
+
+# وضع UTF-8: كي لا يؤثر ترميز ويندوز الافتراضي (cp1252) على الملفات والأنابيب، فيعمل البرنامج مع أسماء مستخدمين عربية
+if not sys.flags.utf8_mode and not getattr(sys, "frozen", False) and not __import__("os").environ.get("VD_NO_REEXEC"):
+    import os as _os
+    import subprocess as _sp
+    _env = dict(_os.environ, PYTHONUTF8="1", VD_NO_REEXEC="1")
+    sys.exit(_sp.call([sys.executable, "-X", "utf8", _os.path.abspath(__file__), *sys.argv[1:]], env=_env))
 import hashlib
 import io
 import json
@@ -9,7 +17,6 @@ import secrets
 import shutil
 import socket
 import subprocess
-import sys
 import threading
 import time
 import traceback
@@ -20,6 +27,7 @@ import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
+os.environ.setdefault("PYTHONUTF8", "1")  # للعمليات الفرعية (ffmpeg وغيرها)
 APP_DIR = os.environ.get("VD_HOME") or os.path.join(os.path.expanduser("~"), ".video-downloader")
 os.makedirs(APP_DIR, exist_ok=True)
 if sys.stdout is None or sys.stderr is None:  # نسخة exe بدون نافذة سوداء
@@ -639,7 +647,7 @@ def _autostart_cmd():
         return f'"{sys.executable}" --background'
     exe = sys.executable
     pw = os.path.join(os.path.dirname(exe), "pythonw.exe")
-    return f'"{pw if os.path.isfile(pw) else exe}" "{os.path.abspath(__file__)}" --tray --background'
+    return f'"{pw if os.path.isfile(pw) else exe}" -X utf8 "{os.path.abspath(__file__)}" --tray --background'
 
 
 def autostart_get():
@@ -823,7 +831,8 @@ class Handler(BaseHTTPRequestHandler):
                                     "deno": dn["found"], "deno_detail": dn["detail"], "phantomjs": ps["found"], "phantomjs_detail": ps["detail"],
                                     "system_proxy": core.system_proxy("https://example.com"),
                                     "ext_token": M.ext_token, "autostart": autostart_get(), "ext_dir": ext_dir(),
-                                    "frozen": bool(getattr(sys, "frozen", False)), "tray": bool(TRAY["icon"])})
+                                    "frozen": bool(getattr(sys, "frozen", False)), "tray": bool(TRAY["icon"]),
+                                    "utf8": int(sys.flags.utf8_mode), "app_dir": APP_DIR})
         if self.path == "/api/deno-progress":
             return self._send(200, dict(DN_PROGRESS))
         if self.path == "/api/phantom-progress":
@@ -950,6 +959,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, {"ok": True})
             self._send(404, {"error": "not found"})
         except Exception as e:  # noqa: BLE001
+            log_error("route", self.path, traceback.format_exc())
             self._send(400, {"error": core.friendly_error(e)})
 
 
@@ -1073,7 +1083,10 @@ def main():
     httpd.daemon_threads = True
     ensure_ext_copy()
     load_ui()
-    print(f"running on {url}  |  UI file: {load_ui.last[0]} (v{load_ui.last[1]})", flush=True)
+    try:
+        print(f"running on {url}  |  UI file: {load_ui.last[0]} (v{load_ui.last[1]})", flush=True)
+    except Exception:  # noqa: BLE001
+        pass
     tray_ok = False
     if want_tray:
         try:
