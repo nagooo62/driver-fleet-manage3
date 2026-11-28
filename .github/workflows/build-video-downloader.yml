@@ -55,6 +55,33 @@ jobs:
           if (-not $ok) { throw "The built app did not serve the UI" }
           Write-Host "Smoke test passed"
 
+      - name: Arabic-path test (run the built app from an Arabic-named folder and make a real HTTPS request)
+        shell: pwsh
+        env:
+          VD_NO_BROWSER: "1"
+          VD_PORT: "8798"
+          VD_DIAG_BASELINE: "https://pypi.org/"
+        run: |
+          $ar = -join ([char[]](0x0631,0x0648,0x0627,0x0626,0x0633))
+          $root = "C:\$ar test"
+          New-Item -ItemType Directory -Force -Path $root | Out-Null
+          Copy-Item -Recurse -Force "dist\VideoDownloader" "$root\app"
+          $env:VD_HOME = "$root\data"
+          $p = Start-Process -FilePath "$root\app\VideoDownloader.exe" -ArgumentList "--background" -PassThru
+          $html = $null
+          for ($i = 0; $i -lt 60; $i++) {
+            Start-Sleep -Seconds 1
+            try { $html = (Invoke-WebRequest -Uri "http://127.0.0.1:8798/" -UseBasicParsing -TimeoutSec 3).Content; break } catch {}
+          }
+          if (-not $html) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue; throw "the app did not start from an Arabic path" }
+          $tok = [regex]::Match($html, 'const TOKEN="([^"]+)"').Groups[1].Value
+          $res = Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:8798/api/diagnose" -Headers @{ "X-Token" = $tok } -ContentType "application/json" -Body '{"url":"https://github.com/"}' -TimeoutSec 120
+          $res.checks | ForEach-Object { "{0}: {1} | {2}" -f $_.name, $_.state, $_.detail }
+          Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+          $bad = @($res.checks | Where-Object { $_.state -eq "fail" })
+          if ($bad.Count -gt 0) { throw "an HTTPS request failed when the app runs from an Arabic path" }
+          Write-Host "Arabic-path HTTPS test passed"
+
       - name: Install Inno Setup
         run: choco install innosetup -y --no-progress
 

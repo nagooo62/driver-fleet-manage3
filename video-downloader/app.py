@@ -33,6 +33,40 @@ os.makedirs(APP_DIR, exist_ok=True)
 if sys.stdout is None or sys.stderr is None:  # نسخة exe بدون نافذة سوداء
     sys.stdout = sys.stderr = open(os.path.join(APP_DIR, "log.txt"), "a", encoding="utf-8")
 
+def _ensure_ascii_cacert():
+    """libcurl/OpenSSL على ويندوز لا يفتحان ملف الشهادات لو كان مساره فيه حروف غير إنجليزية (اسم مستخدم عربي مثلاً)،
+    فنستخدم نسخة منه في مسار ASCII ونوجّه إليها curl_cffi وyt-dlp."""
+    try:
+        import certifi
+        src = certifi.where()
+        if src.isascii() or not os.path.isfile(src):
+            return
+        import filecmp
+        for base in (os.environ.get("PROGRAMDATA"), os.environ.get("PUBLIC"), os.environ.get("VD_CA_DIR")):
+            if not base or not base.isascii():
+                continue
+            d = os.path.join(base, "VideoDownloader")
+            dst = os.path.join(d, "cacert.pem")
+            try:
+                os.makedirs(d, exist_ok=True)
+                if not os.path.isfile(dst) or not filecmp.cmp(src, dst, shallow=False):
+                    shutil.copyfile(src, dst)
+            except OSError:
+                continue
+            for var in ("SSL_CERT_FILE", "CURL_CA_BUNDLE", "REQUESTS_CA_BUNDLE"):
+                os.environ[var] = dst
+            certifi.where = lambda: dst
+            try:
+                import certifi.core as _cc
+                _cc.where = certifi.where
+            except Exception:  # noqa: BLE001
+                pass
+            return
+    except Exception:  # noqa: BLE001
+        pass
+
+
+_ensure_ascii_cacert()
 UPDATE_ROOT = os.path.join(APP_DIR, "ytdlp_update")
 
 
