@@ -866,7 +866,7 @@ class Handler(BaseHTTPRequestHandler):
                                     "system_proxy": core.system_proxy("https://example.com"),
                                     "ext_token": M.ext_token, "autostart": autostart_get(), "ext_dir": ext_dir(),
                                     "frozen": bool(getattr(sys, "frozen", False)), "tray": bool(TRAY["icon"]),
-                                    "utf8": int(sys.flags.utf8_mode), "app_dir": APP_DIR})
+                                    "utf8": int(sys.flags.utf8_mode), "app_dir": APP_DIR, "pid": os.getpid()})
         if self.path == "/api/deno-progress":
             return self._send(200, dict(DN_PROGRESS))
         if self.path == "/api/phantom-progress":
