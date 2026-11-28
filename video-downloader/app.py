@@ -33,37 +33,68 @@ os.makedirs(APP_DIR, exist_ok=True)
 if sys.stdout is None or sys.stderr is None:  # نسخة exe بدون نافذة سوداء
     sys.stdout = sys.stderr = open(os.path.join(APP_DIR, "log.txt"), "a", encoding="utf-8")
 
+def _short_path(p):
+    """مسار ويندوز القصير 8.3 (ASCII غالباً) كحل احتياطي."""
+    try:
+        import ctypes
+        buf = ctypes.create_unicode_buffer(1024)
+        if ctypes.windll.kernel32.GetShortPathNameW(p, buf, 1024):
+            return buf.value
+    except Exception:  # noqa: BLE001
+        pass
+    return ""
+
+
 def _ensure_ascii_cacert():
-    """libcurl/OpenSSL على ويندوز لا يفتحان ملف الشهادات لو كان مساره فيه حروف غير إنجليزية (اسم مستخدم عربي مثلاً)،
-    فنستخدم نسخة منه في مسار ASCII ونوجّه إليها curl_cffi وyt-dlp."""
+    """curl_cffi يرمّز مسار ملف الشهادات بترميز ويندوز الافتراضي، وlibcurl لا يفتح مساراً فيه حروف غير إنجليزية
+    (اسم مستخدم عربي مثلاً). فنستخدم نسخة من الملف في مسار ASCII ونوجّه إليها curl_cffi وyt-dlp."""
+    note = ""
     try:
         import certifi
         src = certifi.where()
         if src.isascii() or not os.path.isfile(src):
             return
         import filecmp
-        for base in (os.environ.get("PROGRAMDATA"), os.environ.get("PUBLIC"), os.environ.get("VD_CA_DIR")):
+        sysdrive = os.environ.get("SystemDrive") or "C:"
+        candidates = [os.environ.get("PROGRAMDATA"), os.environ.get("PUBLIC"), os.environ.get("VD_CA_DIR"), sysdrive + "\\"]
+        dst = ""
+        for base in candidates:
             if not base or not base.isascii():
                 continue
             d = os.path.join(base, "VideoDownloader")
-            dst = os.path.join(d, "cacert.pem")
+            p = os.path.join(d, "cacert.pem")
             try:
                 os.makedirs(d, exist_ok=True)
-                if not os.path.isfile(dst) or not filecmp.cmp(src, dst, shallow=False):
-                    shutil.copyfile(src, dst)
-            except OSError:
-                continue
-            for var in ("SSL_CERT_FILE", "CURL_CA_BUNDLE", "REQUESTS_CA_BUNDLE"):
-                os.environ[var] = dst
-            certifi.where = lambda: dst
-            try:
-                import certifi.core as _cc
-                _cc.where = certifi.where
-            except Exception:  # noqa: BLE001
-                pass
+                if not os.path.isfile(p) or not filecmp.cmp(src, p, shallow=False):
+                    shutil.copyfile(src, p)
+                dst = p
+                break
+            except OSError as e:
+                note += f"copy to {p} failed: {e}\n"
+        if not dst:
+            sp = _short_path(src)
+            if sp and sp.isascii():
+                dst = sp
+        if not dst:
+            note += "no ASCII location available for the CA bundle\n"
             return
-    except Exception:  # noqa: BLE001
-        pass
+        for var in ("SSL_CERT_FILE", "CURL_CA_BUNDLE", "REQUESTS_CA_BUNDLE"):
+            os.environ[var] = dst
+        certifi.where = lambda: dst
+        try:
+            import certifi.core as _cc
+            _cc.where = certifi.where
+        except Exception:  # noqa: BLE001
+            pass
+    except Exception as e:  # noqa: BLE001
+        note += f"ascii cacert setup error: {e}\n"
+    finally:
+        if note:
+            try:
+                with open(os.path.join(APP_DIR, "errors.log"), "a", encoding="utf-8") as f:
+                    f.write(note + "\n")
+            except OSError:
+                pass
 
 
 _ensure_ascii_cacert()
